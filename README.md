@@ -3,6 +3,9 @@
 
 ## Authors 
 
-- Léa Latteur 
+- Léa Larreur 
 - Edouard Delaire
+- Shahla Bakian Dogaheh
+- Jean-Marc Lina
+- Christophe Grova
 
