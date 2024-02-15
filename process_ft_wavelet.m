@@ -105,7 +105,18 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
     addpath('/home/edelaire/Desktop/fNIRS_MEG/ressources');
 
 
-    sData            = in_bst_data(sInputs.FileName);
+    % Load recordings
+    if strcmp(sInputs.FileType, 'data')     % Imported data structure
+        sData = in_bst_data(sInputs(1).FileName);
+        events = sData.Events;
+        isRaw  = 0;
+    elseif strcmp(sInputs.FileType, 'raw')  % Continuous data file       
+        sData = in_bst(sInputs(1).FileName, [], 1, 1, 'no');
+        sDataRaw = in_bst_data(sInputs(1).FileName, 'F');
+        events = sDataRaw.F.events;
+        isRaw  = 1;
+    end
+
     sChannels        = in_bst_channel(sInputs.ChannelFile);
     channelTypes     = sProcess.options.sensortypes.Value;
     freq_range       = sProcess.options.freq_range.Value{1};
@@ -135,12 +146,18 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
     ext_time    = padarray(time,[0 round((2^p - size(time,2))/2)],NaN,'both');
     iOrigTime   = ~isnan(ext_time);
 
-    stages = {'wake','N1','N2','N3','REM'};
-    iEvent = cellfun(  @(x) find(strcmp( {sData.Events.label},x)),stages);
-    Events = sData.Events(iEvent);
-    
-    motion = sData.Events(contains({sData.Events.label}, 'motion'));
-    motion  =  extendEvent(motion, 60, 60  );
+    %stages = {'wake','N1','N2','N3','REM'};
+    %iEvent = cellfun(  @(x) find(strcmp( {sData.Events.label},x)),stages);
+    %if any(iEvent)
+    %    Events = sData.Events(iEvent);
+    %end
+    Events = [];
+
+
+    motion = events(contains({events.label}, 'motion'));
+    %if ~isempty(motion) 
+    %    motion  =  extendEvent(motion, 60, 60  );
+    %end
 
     OPTIONS.wavelet.vanish_moments =  sProcess.options.vanish_moments.Value{1} ; % vanish momemts
     OPTIONS.wavelet.order          =  sProcess.options.order.Value{1} ;  % spectral decay
