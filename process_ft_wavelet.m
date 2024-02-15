@@ -40,7 +40,7 @@ function sProcess = GetDescription() %#ok<DEFNU>
     sProcess.nInputs     = 1;
     sProcess.nMinFiles   = 1;
     % Definition of the input accepted by this process
-    sProcess.InputTypes  = {'data', 'results', 'matrix'};
+    sProcess.InputTypes  = {'data', 'raw', 'matrix'};
     sProcess.OutputTypes = {'timefreq', 'timefreq', 'timefreq'};
     sProcess.nInputs     = 1;
     sProcess.nMinFiles   = 1;
@@ -184,8 +184,10 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
 
     nSensors = sum(cellfun(@(x)length(x),{cluster.Sensors}));
     bst_progress('start', 'Running Time-Frequency Analysis', 'Running Time-Frequency Analysis', 0, nSensors);
+
     for iCluster = 1:length(cluster) 
         wData_temp  = nan(length(cluster(iCluster).Sensors),  OPTIONS(iCluster).wavelet.nb_levels  + 1,length(time)) ; % N_channel x Nfreq x Ntime
+        power_time = nan(length(cluster(iCluster).Sensors),  length(time)) ;
         for iSensor = 1:length(cluster(iCluster).Sensors)
             
             % Step 1 - compute time-frequency representation
@@ -195,7 +197,8 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
             % Step 2- Normalize the TF maps
             [power, title_tf] = normalize(tmp(iOrigTime,:)', OPTIONS(iCluster));
             OPTIONS(iCluster).title_tf =  title_tf ;
-            wData_temp(iSensor,:,:) = power;
+            power_time(iSensor,:) =  sqrt(sum(power.^2));
+            wData_temp(iSensor,:,:) = power ./ sqrt(median(sum(power.^2))) ;
 
             bst_progress('inc', 1); 
         end
@@ -220,20 +223,26 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
     
     % Step 5 - Display Results
     for iCluster = 1:length(cluster) 
-        f1 = displayTF_Plane(squeeze(wData(iCluster,:,:)),time, OPTIONS(iCluster));
-        OPTIONS(iCluster).wavelet.display.TaegerK = 'yes';
-        folder_out = '/NAS/home/edelaire/Documents/Project/Yeo/TFR_lea/';
-        saveas(f1,fullfile(folder_out, sprintf('TF_subject-%s_region-%s.png', 'Kj' ,  cluster(iCluster).Label )));
 
-        OPTIONS(iCluster).wavelet.display.TaegerK = 'yes';
-        f2 = displayPowerSpectrum(squeeze(wData(iCluster,:,:)),time, Events,motion, OPTIONS(iCluster));
-        saveas(f2,fullfile(folder_out, sprintf('spectrum_subject-%s_region-%s_normalized-yes.png', 'Kj' ,  cluster(iCluster).Label )));
+        WDdata = squeeze(wData(iCluster,:,:)); 
 
-        OPTIONS(iCluster).wavelet.display.TaegerK = 'no';
-        f3 = displayPowerSpectrum(squeeze(wData(iCluster,:,:)),time, Events,motion, OPTIONS(iCluster));
-        saveas(f3,fullfile(folder_out, sprintf('spectrum_subject-%s_region-%s_normalized-no.png', 'Kj' ,  cluster(iCluster).Label )));
 
-        close all
+        f1 = displayTF_Plane(WDdata,time, OPTIONS(iCluster));
+        grid off
+        colormap('jet')
+        caxis([0,0.5]);
+        
+%         saveas(f1,fullfile(folder_out, sprintf('TF_subject-%s_region-%s.png', 'Kj' ,  cluster(iCluster).Label )));
+% 
+%         OPTIONS(iCluster).wavelet.display.TaegerK = 'yes';
+%         f2 = displayPowerSpectrum(squeeze(wData(iCluster,:,:)),time, Events,motion, OPTIONS(iCluster));
+%         saveas(f2,fullfile(folder_out, sprintf('spectrum_subject-%s_region-%s_normalized-yes.png', 'Kj' ,  cluster(iCluster).Label )));
+% 
+%         OPTIONS(iCluster).wavelet.display.TaegerK = 'no';
+%         f3 = displayPowerSpectrum(squeeze(wData(iCluster,:,:)),time, Events,motion, OPTIONS(iCluster));
+%         saveas(f3,fullfile(folder_out, sprintf('spectrum_subject-%s_region-%s_normalized-no.png', 'Kj' ,  cluster(iCluster).Label )));
+% 
+%         close all
     end
     
 end 
