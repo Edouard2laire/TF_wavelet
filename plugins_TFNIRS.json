@@ -2,7 +2,7 @@
   "Name": "TFNIRS",
   "Version": "latest",
   "Category": "Other",
-  "URLzip": "https://github.com/Edouard2laire/TF_wavelet/archive/refs/heads/main.zip",
+  "URLzip": "https://github.com/Edouard2laire/TF_wavelet/archive/refs/heads/process.zip",
   "URLinfo": "https://github.com/Edouard2laire/TF_wavelet",
   "TestFile": "process_ft_wavelet.m",
   "LoadFolders": [
