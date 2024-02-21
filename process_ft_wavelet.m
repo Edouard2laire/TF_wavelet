@@ -102,7 +102,9 @@ end
 function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
     OutputFiles = {};
 
-    addpath('/home/edelaire/Desktop/fNIRS_MEG/ressources');
+
+    addpath('/Users/edelaire1/Documents/software/fNIRS_MEG/ressources');
+    out_folder = '/Users/edelaire1/Documents/Project/CIHR/CIHR_march_2024/TF/PA03';
 
 
     % Load recordings
@@ -139,6 +141,8 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
     end
 
     F           = sData.F(iChannels,iTime);
+    F           = nst_misc_convert_to_mumol(F,sData.DisplayUnits);
+
     sChannels   = sChannels.Channel(iChannels);
 
     p = nextpow2(length(time));
@@ -194,16 +198,18 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
             iChannel = find(strcmp({sChannels.Name}, cluster(iCluster).Sensors(iSensor)));
             [tmp, OPTIONS(iCluster)] = be_CWavelet(squeeze(F(iChannel,1:2^p)), OPTIONS(iCluster));
             
-            % Step 2- Normalize the TF maps
+            % Step 2- Normalize the TF maps ( Remove 1/f)
             [power, title_tf] = normalize(tmp(iOrigTime,:)', OPTIONS(iCluster));
             OPTIONS(iCluster).title_tf =  title_tf ;
+
+            % Step 3- Normalize the TF maps ( standardize power)
             power_time(iSensor,:) =  sqrt(sum(power.^2));
             wData_temp(iSensor,:,:) = power ./ sqrt(median(sum(power.^2))) ;
 
             bst_progress('inc', 1); 
         end
 
-        % Step 3 - Average accross 
+        % Step 4 - Average accross 
         if length(cluster(iCluster).Sensors) > 1
             wData(iCluster,:,:) = squeeze(mean(wData_temp));
         else
@@ -211,15 +217,25 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
         end
 
         OPTIONS(iCluster).title_tf  = sprintf('%s - %s', strrep(cluster(iCluster).Label,'_',' '), OPTIONS(iCluster).title_tf);
-    end
+        
+        % Step 4. Select frequency Band
+        OPTIONS(iCluster) = select_frequency_band(freq_range(1),freq_range(2),OPTIONS(iCluster));
+
+        out_data            = struct();
+        freqWindow          = OPTIONS(iCluster).wavelet.freqWindow;
+        out_data.OPTIONS    = OPTIONS(iCluster);
+        out_data.OPTIONS.wavelet.freqs_analyzed = out_data.OPTIONS.wavelet.freqs_analyzed(freqWindow(1):freqWindow(2));
+        out_data.OPTIONS.wavelet.freqWindow = [1 , length(out_data.OPTIONS.wavelet.freqs_analyzed)];
+        out_data.cluster    = cluster(iCluster);
+        out_data.time       = time;
+        out_data.events     = events;
+        out_data.WDdata     = wData_temp(:,freqWindow(1):freqWindow(2),:);
+        out_data.WDdata_avg = squeeze(wData(iCluster,freqWindow(1):freqWindow(2),:));
+
+        save(fullfile(out_folder,[sInputs(1).Condition(9:end) '_clus-' cluster(iCluster).Label '.mat'] ), "out_data",'-v7.3' );
+    end 
 
     bst_progress('stop');
-
-    % Step 4. Select frequency Band
-    for iCluster = 1:length(cluster) 
-        OPTIONS(iCluster) = select_frequency_band(freq_range(1),freq_range(2),OPTIONS(iCluster));
-    end
-
     
     % Step 5 - Display Results
     for iCluster = 1:length(cluster) 
@@ -231,7 +247,7 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
         grid off
         colormap('jet')
         caxis([0,0.5]);
-        
+
 %         saveas(f1,fullfile(folder_out, sprintf('TF_subject-%s_region-%s.png', 'Kj' ,  cluster(iCluster).Label )));
 % 
 %         OPTIONS(iCluster).wavelet.display.TaegerK = 'yes';
@@ -245,9 +261,8 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
 %         close all
     end
     
+    save(fullfile(out_folder,[sInputs(1).Condition(9:end) '.mat'] ), "time", "events", "WDdata",  "OPTIONS", "cluster" );
 end 
-
-
 
 
 function idx  =  getIndexEvent(Time, Event )
