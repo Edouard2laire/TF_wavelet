@@ -245,8 +245,7 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
 
         f1 = displayTF_Plane(WDdata,time, OPTIONS(iCluster));
         grid off
-        colormap('jet')
-        caxis([0,0.5]);
+
 
 %         saveas(f1,fullfile(folder_out, sprintf('TF_subject-%s_region-%s.png', 'Kj' ,  cluster(iCluster).Label )));
 % 
@@ -307,12 +306,17 @@ function f = displayTF_Plane(power,time, OPTIONS)
     f = figure('units','normalized','outerposition',[0 0 1 1]);
     ax = axes();
     set(f,'CurrentAxes',ax);
+
+
     % frequency cropping:
     if isfield(OPTIONS.wavelet,'freqWindow')
         power = power(OPTIONS.wavelet.freqWindow(1):OPTIONS.wavelet.freqWindow(2),:);
     else
         OPTIONS.wavelet.freqWindow = [1 size(power,1)];
     end
+
+
+    
 
             % maximum power display
     disp(['Max. Value of this TF plane: ' num2str(sqrt(max(max(power))))]);
@@ -341,44 +345,55 @@ function f = displayTF_Plane(power,time, OPTIONS)
                 'FontName','Times',...
                 'FontAngle','Italic',...
                 'FontSize',font_scale);
+
+    if isfield(OPTIONS, 'clim') && ~isempty(OPTIONS.clim)
+        clim(OPTIONS.clim);
+    end
+
+    if isfield(OPTIONS ,'colormap') && ~isempty(OPTIONS.colormap)
+        colormap(OPTIONS.colormap);
+    end
+
+
     title(ax,OPTIONS.title_tf);
 
 
 end
 
+function [spectrum_mean, spectrum_std, N] = averageBySleepStage(power,time, Events,motion)
 
-function f = displayPowerSpectrum(power,time, Events,motion, OPTIONS)
-
-
-    if isfield(OPTIONS.wavelet,'freqWindow')
-        power = power(OPTIONS.wavelet.freqWindow(1):OPTIONS.wavelet.freqWindow(2),:);
-        freqs_analyzed = OPTIONS.wavelet.freqs_analyzed(OPTIONS.wavelet.freqWindow(1):OPTIONS.wavelet.freqWindow(2));
-    else
-        OPTIONS.wavelet.freqWindow = [1 size(power,1)];
-        freqs_analyzed =  OPTIONS.wavelet.freqs_analyzed;
-    end
-    
     idx_motion      =  getIndexEvent(time,motion);
     spectrum_mean   = zeros( length(Events), size(power,1) );
     spectrum_std    = zeros( length(Events), size(power,1) );
     N               = zeros(1,length(Events));
+
     for iEvent = 1:length(Events)
         idx_event  =  ~idx_motion & getIndexEvent(time,Events(iEvent));
         if any(idx_event)
             spectrum_mean(iEvent,:) = mean(power(:,idx_event),2);
             spectrum_std(iEvent,:) = std(power(:,idx_event),[],2);
 
-            % Try to estimate the number of independant sample
-            N(iEvent) = ess(power(:,idx_event), true, 'bulk'); %sum(idx_event); 
+            N(iEvent) = sum(idx_event); 
         end
     end
+end
+
+function f = displayPowerSpectrum(spectrum_mean,spectrum_err, labels,OPTIONS)
+
+
+    if isfield(OPTIONS.wavelet,'freqWindow')
+        freqs_analyzed = OPTIONS.wavelet.freqs_analyzed(OPTIONS.wavelet.freqWindow(1):OPTIONS.wavelet.freqWindow(2));
+    else
+        freqs_analyzed =  OPTIONS.wavelet.freqs_analyzed;
+    end
+    
 
     f = figure('units','normalized','outerposition',[0 0 1 1]);
     ax = axes();
     set(f,'CurrentAxes',ax);
 
     for i = 1:size(spectrum_mean,1)
-        shadedErrorBar(freqs_analyzed, spectrum_mean(i,:),spectrum_std(i,:)./sqrt(N(i)) ,'lineProps',{'color',OPTIONS.color_map(i,:)}); hold on;
+        shadedErrorBar(freqs_analyzed, spectrum_mean(i,:),spectrum_err(i,:) ,'lineProps',{'color',OPTIONS.color_map(i,:)}); hold on;
     end
     xlim( [ min(freqs_analyzed), max(freqs_analyzed)])
     set(ax,'xscale','log');
@@ -387,9 +402,10 @@ function f = displayPowerSpectrum(power,time, Events,motion, OPTIONS)
         set(ax,'yscale','log');
     end
 
-    legend({Events.label})
+    legend(labels)
     xlabel('Frequency (Hz)')
     ylabel('Power');
     title(OPTIONS.title_tf)
+
 end
 
