@@ -378,6 +378,103 @@ function [spectrum_mean, spectrum_std, N] = averageBySleepStage(power,time, Even
     end
 end
 
+function segments = exctractSegment(WData,time, stages, events)
+% Extract continous segment of data with the same sleep stage. 
+% Output :  1xN stuct segment. N being the number of segments
+%      segments(i).label: stage present in the segment
+%      segment(i).WDdata : tine-frequency data
+%      segment(i).time   ; time starting at 0 for each segment
+%      segment(i).offset : time between the start of the recording and the
+%      begining of the segment
+%      segment(i).duration : duration of the segment
+%      segment(i).events: events occuring during the segment
+
+
+
+% create hypnogram 
+    hypnoram = zeros(1, length(time));
+    for iStage = 1:length(stages)
+        idx_event  =  getIndexEvent(time,stages(iStage));
+        hypnoram(idx_event) = iStage;
+    end
+    
+    % detect changes indicating begening / end of segment 
+    
+    diff = [ 1 , hypnoram(2:end-1) ~= hypnoram(1:end-2) , 1 ];
+    changepoints = find(diff);
+    
+    nSegment = length(changepoints) - 1;
+    segments = repmat(struct('label', '', 'WData', [], 'time' , [], 'offset', 0 , 'duration', 0 , 'events',repmat(db_template('event'),1,0) ) ,  ...
+                      nSegment , 1);
+    
+    good_segments = true(1, nSegment );
+    for iSegment = 1:nSegment
+        beging = changepoints(iSegment);
+        finish = changepoints(iSegment + 1) - 1;
+    
+        iStage = unique(hypnoram(beging:finish));
+
+
+        assert(length(iStage) == 1, 'Something wrong happened, multiple sleep stage in the segment');
+
+        if iStage == 0 % we dont have reliable info
+            good_segments(iSegment) = false;
+            continue;
+        end
+
+        segments(iSegment).label    = stages(iStage).label;
+        segments(iSegment).WData    = WData(:, beging:finish);
+        segments(iSegment).time      = time(beging:finish) - time(beging);
+        segments(iSegment).offset   = time(beging);
+        segments(iSegment).duration = time(finish) - time(beging); 
+        segments(iSegment).events   = events;
+
+        % fix the events : keep only the events happening in the segment
+        % and adjust the time 
+
+        good_event = true(1, length(events));
+
+        for iEvent = 1:length(events)
+            sEvent = events(iEvent);
+            sEvent.times =  sEvent.times - segments(iSegment).offset;
+
+            if isempty(sEvent.times)
+                good_event(iEvent) = false;
+                continue;
+            end
+
+            if size(sEvent.times, 1 )   == 1 % single events 
+                inside = sEvent.times > 0 & sEvent.times < segments(iSegment).duration;
+            else
+                beging_inside = sEvent.times(1,:) > segments(iSegment).time(2) & sEvent.times(1,:)  < segments(iSegment).time(end-1);
+                end_inside = sEvent.times(2,:) > segments(iSegment).time(2) & sEvent.times(2,:)  < segments(iSegment).time(end-1);
+
+                inside = beging_inside | end_inside ;
+                
+                % we then fix the events that are at the interface
+                to_fix = (beging_inside & ~end_inside);
+                sEvent.times(2,to_fix) = segments(iSegment).duration;
+
+                to_fix = (~beging_inside & end_inside);
+                sEvent.times(1,to_fix) = 0;
+            end
+
+            if ~any(inside)
+                good_event(iEvent) = false;
+                continue;
+            end
+
+             sEvent.times  =  sEvent.times(:, inside);
+             segments(iSegment).events(iEvent) = sEvent;
+        end
+        segments(iSegment).events = segments(iSegment).events(good_event);
+
+    end
+    
+    segments = segments(good_segments);
+end
+
+
 function f = displayPowerSpectrum(spectrum_mean,spectrum_err, labels,OPTIONS)
 
 
