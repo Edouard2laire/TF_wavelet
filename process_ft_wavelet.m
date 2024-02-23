@@ -301,10 +301,16 @@ function [power, title_tf] = normalize(tf, OPTIONS)
     end
 end
 
-function f = displayTF_Plane(power,time, OPTIONS)
+function f = displayTF_Plane(power,time, OPTIONS, f)
 
-    f = figure('units','normalized','outerposition',[0 0 1 1]);
-    ax = axes();
+    if nargin  < 4
+        f = figure('units','normalized','outerposition',[0 0 1 1]);
+            ax = axes();
+    else
+    
+        ax = gca;
+    end
+
     set(f,'CurrentAxes',ax);
 
 
