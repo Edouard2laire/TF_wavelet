@@ -384,14 +384,17 @@ function [spectrum_mean, spectrum_std, N] = averageBySleepStage(power,time, Even
     end
 end
 
-function segments = exctractSegment(WData,time, stages, events)
+function segments = exctractSegment(WData,time, stages, events, freqs)
 % Extract continous segment of data with the same sleep stage. 
 % Output :  1xN stuct segment. N being the number of segments
 %      segments(i).label: stage present in the segment
 %      segment(i).WDdata : tine-frequency data
 %      segment(i).time   ; time starting at 0 for each segment
+%      segment(i).freq   : frequency axis
 %      segment(i).offset : time between the start of the recording and the
 %      begining of the segment
+%      segment(i).nAvg ; number of average done accros each dimension:
+%      [space, time within run, time between runs  ] 
 %      segment(i).duration : duration of the segment
 %      segment(i).events: events occuring during the segment
 
@@ -410,7 +413,7 @@ function segments = exctractSegment(WData,time, stages, events)
     changepoints = find(diff);
     
     nSegment = length(changepoints) - 1;
-    segments = repmat(struct('label', '', 'WData', [], 'time' , [], 'offset', 0 , 'duration', 0 , 'events',repmat(db_template('event'),1,0) ) ,  ...
+    segments = repmat(struct('label', '', 'WData', [], 'time' , [],'freq',[], 'offset', 0 ,'nAvg', nan(1,4), 'duration', 0 , 'events',repmat(db_template('event'),1,0) ) ,  ...
                       nSegment , 1);
     
     good_segments = true(1, nSegment );
@@ -430,10 +433,18 @@ function segments = exctractSegment(WData,time, stages, events)
 
         segments(iSegment).label    = stages(iStage).label;
         segments(iSegment).WData    = WData(:, beging:finish);
-        segments(iSegment).time      = time(beging:finish) - time(beging);
+        segments(iSegment).time     = time(beging:finish) - time(beging);
+        segments(iSegment).freq     = freqs;
         segments(iSegment).offset   = time(beging);
         segments(iSegment).duration = time(finish) - time(beging); 
         segments(iSegment).events   = events;
+
+        
+        % we remove segment less than 2 sample
+        if length(segments(iSegment).time) < 2
+            good_segments(iSegment) = false;
+            continue;
+        end
 
         % fix the events : keep only the events happening in the segment
         % and adjust the time 
