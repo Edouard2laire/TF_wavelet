@@ -509,14 +509,57 @@ function averaged_segments = averageWithinSegment(segments)
     averaged_segments = rmfield(averaged_segments,"offset");
 
 end
-function f = displayPowerSpectrum(spectrum_mean,spectrum_err, labels,OPTIONS)
 
+function resampled_segments = resampleFrequency(segments, new_f)
+% Resample the frequency axis to standardized frequency axis. Mandatory to
+% average between run / subjects. Only works removing the time axis for
+% now (ie. after averageWithinSegment)
 
-    if isfield(OPTIONS.wavelet,'freqWindow')
-        freqs_analyzed = OPTIONS.wavelet.freqs_analyzed(OPTIONS.wavelet.freqWindow(1):OPTIONS.wavelet.freqWindow(2));
-    else
-        freqs_analyzed =  OPTIONS.wavelet.freqs_analyzed;
+    nSegment = length(segments);
+    resampled_segments = segments;
+    for iSegment = 1:nSegment
+
+        resampled_segments(iSegment).WData = interp1( segments(iSegment).freq, segments(iSegment).WData, new_f,"linear");
+        if isfield(resampled_segments,'WDataStd')
+            resampled_segments(iSegment).WDataStd = interp1( segments(iSegment).freq, segments(iSegment).WDataStd, new_f,"linear");
+        end
+        resampled_segments(iSegment).freq  = new_f;
     end
+
+end
+
+function averaged_segments = averageBetweenSegment(segments)
+
+    averaged_segments = segments(1);
+
+    wData = vertcat(segments.WData);
+    averaged_segments.WData = squeeze(mean(wData)) ; 
+
+    if isfield(segments(1),'WDataStd')
+        disp('Replacing WDataStd by the std between segment. ')
+        averaged_segments.WDataStd = squeeze(std(wData));
+    end
+
+    % Update the number of average. 
+
+    nAvg = vertcat(segments.nAvg);
+    averaged_segments.nAvg = mean(nAvg);
+    averaged_segments.nAvg(3) = length(segments);
+
+    % Update the number of average. 
+    
+    averaged_segments.duration = mean([segments.duration]);
+
+end
+
+function f = displayPowerSpectrum(spectrum_mean,spectrum_err, labels, freqs_analyzed, OPTIONS)
+
+    % 
+    % if isfield(OPTIONS.wavelet,'freqWindow')
+    %     freqs_analyzed = OPTIONS.wavelet.freqs_analyzed(OPTIONS.wavelet.freqWindow(1):OPTIONS.wavelet.freqWindow(2));
+    % else
+    %     freqs_analyzed =  OPTIONS.wavelet.freqs_analyzed;
+    % end
     
 
     f = figure('units','normalized','outerposition',[0 0 1 1]);
