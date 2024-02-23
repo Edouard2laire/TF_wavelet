@@ -277,9 +277,13 @@ end
 
 
 function Event  =  extendEvent(Event, before, after  )
+
+    if size(Event.times,1) == 1
+        Event.times = repmat(Event.times,2,1);
+    end
+    
     Event.times(1,:) = Event.times(1,:) - before;
     Event.times(2,:) = Event.times(2,:) + after;
-
     Event.times = Event.times(:, Event.times(2,:) > Event.times(1,:));
 
 end
