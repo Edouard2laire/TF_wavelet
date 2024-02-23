@@ -475,6 +475,23 @@ function segments = exctractSegment(WData,time, stages, events)
 end
 
 
+function averaged_segments = averageWithinSegment(segments)
+    % Average accross time within each segment
+
+    nSegment = length(segments);
+    averaged_segments = segments;
+    for iSegment = 1:nSegment
+         averaged_segments(iSegment).WData = squeeze(mean(averaged_segments(iSegment).WData, 2));
+         averaged_segments(iSegment).WDataStd = squeeze(std(averaged_segments(iSegment).WData,[], 2));
+         averaged_segments(iSegment).nAvg(2) = length(averaged_segments(iSegment).time);
+    end
+
+    % remove time information 
+    averaged_segments = rmfield(averaged_segments,"time");
+    averaged_segments = rmfield(averaged_segments,"events");
+    averaged_segments = rmfield(averaged_segments,"offset");
+
+end
 function f = displayPowerSpectrum(spectrum_mean,spectrum_err, labels,OPTIONS)
 
 
