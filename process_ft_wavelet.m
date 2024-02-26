@@ -487,10 +487,17 @@ function resampled_segments = resampleFrequency(segments, new_f)
     nSegment = length(segments);
     resampled_segments = segments;
     for iSegment = 1:nSegment
-
-        resampled_segments(iSegment).WData = interp1( segments(iSegment).freq, segments(iSegment).WData, new_f,"linear");
+        nTime = size(resampled_segments(iSegment).WData,2);
+        resampled_segments(iSegment).WData = zeros(length(new_f), nTime);
         if isfield(resampled_segments,'WDataStd')
-            resampled_segments(iSegment).WDataStd = interp1( segments(iSegment).freq, segments(iSegment).WDataStd, new_f,"linear");
+            resampled_segments(iSegment).WDataStd = zeros(length(new_f), nTime);
+        end
+        
+        for iTime = 1:nTime
+            resampled_segments(iSegment).WData(:,iTime) = interp1( segments(iSegment).freq, segments(iSegment).WData(:,iTime), new_f,"linear");
+            if isfield(resampled_segments,'WDataStd')
+                resampled_segments(iSegment).WDataStd(:,iTime) = interp1( segments(iSegment).freq, segments(iSegment).WDataStd(:,iTime), new_f,"linear");
+            end
         end
         resampled_segments(iSegment).freq  = new_f;
     end
