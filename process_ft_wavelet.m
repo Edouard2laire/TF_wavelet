@@ -528,6 +528,18 @@ function averaged_segments = averageBetweenSegment(segments)
 
 end
 
+function segments = setTimeOrigin(segments, new_zero)
+
+    segments.time = segments.time - new_zero;
+    for iEvent = 1:length(segments.events)
+        segments.events(iEvent).times = segments.events(iEvent).times - new_zero;
+    end
+    
+
+end
+
+
+
 function f = displayPowerSpectrum(spectrum_mean,spectrum_err, labels, freqs_analyzed, OPTIONS)
 
     % 
