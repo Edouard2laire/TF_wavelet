@@ -508,13 +508,13 @@ function averaged_segments = averageBetweenSegment(segments)
 
     averaged_segments = segments(1);
 
-    wData = vertcat(segments.WData);
-    averaged_segments.WData = squeeze(mean(wData)) ; 
+    wData = cat(3,segments.WData);
+    averaged_segments.WData = squeeze(mean(wData,3)) ; 
 
     if isfield(segments(1),'WDataStd')
         disp('Replacing WDataStd by the std between segment. ')
-        averaged_segments.WDataStd = squeeze(std(wData));
     end
+    averaged_segments.WDataStd = squeeze(std(wData,[],3));
 
     % Update the number of average. 
 
