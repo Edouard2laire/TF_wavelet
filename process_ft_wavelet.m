@@ -150,19 +150,6 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
     ext_time    = padarray(time,[0 round((2^p - size(time,2))/2)],NaN,'both');
     iOrigTime   = ~isnan(ext_time);
 
-    %stages = {'wake','N1','N2','N3','REM'};
-    %iEvent = cellfun(  @(x) find(strcmp( {sData.Events.label},x)),stages);
-    %if any(iEvent)
-    %    Events = sData.Events(iEvent);
-    %end
-    Events = [];
-
-
-    motion = events(contains({events.label}, 'motion'));
-    %if ~isempty(motion) 
-    %    motion  =  extendEvent(motion, 60, 60  );
-    %end
-
     OPTIONS.wavelet.vanish_moments =  sProcess.options.vanish_moments.Value{1} ; % vanish momemts
     OPTIONS.wavelet.order          =  sProcess.options.order.Value{1} ;  % spectral decay
     OPTIONS.wavelet.nb_levels      =  sProcess.options.nb_levels.Value{1};% number of voices
@@ -191,7 +178,7 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
 
     for iCluster = 1:length(cluster) 
         wData_temp  = nan(length(cluster(iCluster).Sensors),  OPTIONS(iCluster).wavelet.nb_levels  + 1,length(time)) ; % N_channel x Nfreq x Ntime
-        power_time = nan(length(cluster(iCluster).Sensors),  length(time)) ;
+
         for iSensor = 1:length(cluster(iCluster).Sensors)
             
             % Step 1 - compute time-frequency representation
@@ -241,23 +228,7 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
     for iCluster = 1:length(cluster) 
 
         WDdata = squeeze(wData(iCluster,:,:)); 
-
-
         f1 = displayTF_Plane(WDdata,time, OPTIONS(iCluster));
-        grid off
-
-
-%         saveas(f1,fullfile(folder_out, sprintf('TF_subject-%s_region-%s.png', 'Kj' ,  cluster(iCluster).Label )));
-% 
-%         OPTIONS(iCluster).wavelet.display.TaegerK = 'yes';
-%         f2 = displayPowerSpectrum(squeeze(wData(iCluster,:,:)),time, Events,motion, OPTIONS(iCluster));
-%         saveas(f2,fullfile(folder_out, sprintf('spectrum_subject-%s_region-%s_normalized-yes.png', 'Kj' ,  cluster(iCluster).Label )));
-% 
-%         OPTIONS(iCluster).wavelet.display.TaegerK = 'no';
-%         f3 = displayPowerSpectrum(squeeze(wData(iCluster,:,:)),time, Events,motion, OPTIONS(iCluster));
-%         saveas(f3,fullfile(folder_out, sprintf('spectrum_subject-%s_region-%s_normalized-no.png', 'Kj' ,  cluster(iCluster).Label )));
-% 
-%         close all
     end
     
     save(fullfile(out_folder,[sInputs(1).Condition(9:end) '.mat'] ), "time", "events", "WDdata",  "OPTIONS", "cluster" );
@@ -325,10 +296,7 @@ function f = displayTF_Plane(power,time, OPTIONS, f)
         OPTIONS.wavelet.freqWindow = [1 size(power,1)];
     end
 
-
-    
-
-            % maximum power display
+    % maximum power display
     disp(['Max. Value of this TF plane: ' num2str(sqrt(max(max(power))))]);
     OPTIONS.power = power;
     % bornes et marqueurs de l'axe frequence
@@ -363,11 +331,8 @@ function f = displayTF_Plane(power,time, OPTIONS, f)
     if isfield(OPTIONS ,'colormap') && ~isempty(OPTIONS.colormap)
         colormap(OPTIONS.colormap);
     end
-
-
+    grid off;
     title(ax,OPTIONS.title_tf);
-
-
 end
 
 function [spectrum_mean, spectrum_std, N] = averageBySleepStage(power,time, Events,motion)
