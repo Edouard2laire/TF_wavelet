@@ -313,6 +313,10 @@ function f = displayTF_Plane(power,time, OPTIONS, f)
     else
         font_scale = 14;
     end
+    
+    ylabel('Frequency (Hz)')
+    xlabel('Times (s)');
+
     set(ax,...
                 'XLim',[time(1),time(end)],...
                 'YGrid','on',...
@@ -529,45 +533,54 @@ function averaged_segments = averageBetweenSegment(segments)
 end
 
 function segments = setTimeOrigin(segments, new_zero)
-
     segments.time = segments.time - new_zero;
     for iEvent = 1:length(segments.events)
         segments.events(iEvent).times = segments.events(iEvent).times - new_zero;
     end
-    
-
 end
 
 
 
 function f = displayPowerSpectrum(spectrum_mean,spectrum_err, labels, freqs_analyzed, OPTIONS)
 
-    % 
-    % if isfield(OPTIONS.wavelet,'freqWindow')
-    %     freqs_analyzed = OPTIONS.wavelet.freqs_analyzed(OPTIONS.wavelet.freqWindow(1):OPTIONS.wavelet.freqWindow(2));
-    % else
-    %     freqs_analyzed =  OPTIONS.wavelet.freqs_analyzed;
-    % end
-    
-
     f = figure('units','normalized','outerposition',[0 0 1 1]);
     ax = axes();
     set(f,'CurrentAxes',ax);
 
+     % bornes et marqueurs de l'axe frequence
+    LFmin = log2(freqs_analyzed(1));
+    LFmax = log2(freqs_analyzed(end));
+
+    Ytic  = 2.^(fix(LFmin):fix(LFmax));
+    temp  = num2str(Ytic','%4.3f');
+    Yticl = mat2cell(temp,...
+            ones(1, size(temp,1)),...
+            size(temp,2));
+
+
     for i = 1:size(spectrum_mean,1)
-        shadedErrorBar(freqs_analyzed, spectrum_mean(i,:),spectrum_err(i,:) ,'lineProps',{'color',OPTIONS.color_map(i,:)}); hold on;
+        shadedErrorBar(freqs_analyzed, spectrum_mean(i,:),spectrum_err(i,:) ,'lineProps',{'LineWidth',2,  'color',OPTIONS.color_map(i,:)}); hold on;
     end
-    xlim( [ min(freqs_analyzed), max(freqs_analyzed)])
-    set(ax,'xscale','log');
-    
+
+    h = legend(ax,labels);
+    title(h, 'Sleep Stage')
+    xlabel(ax,'Frequency (Hz)');
+    ylabel(ax, 'Power');
+    title(ax,OPTIONS.title_tf);
+
+    set(ax,...
+            'LineWidth', 2, ...
+            'xscale', 'log' , ...
+            'xlim', [ min(freqs_analyzed), max(freqs_analyzed)], ...
+            'XTick',Ytic(:),...
+            'XTickLabel',Yticl,...
+            'FontName','Times',...
+            'FontAngle','Italic',...
+            'FontSize',  OPTIONS.wavelet.display.fontscale);
+
     if strcmp(OPTIONS.wavelet.display.TaegerK ,'no')
         set(ax,'yscale','log');
     end
-
-    legend(labels)
-    xlabel('Frequency (Hz)')
-    ylabel('Power');
-    title(OPTIONS.title_tf)
 
 end
 
