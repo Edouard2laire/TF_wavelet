@@ -190,8 +190,8 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
             OPTIONS(iCluster).title_tf =  title_tf ;
 
             % Step 3- Normalize the TF maps ( standardize power)
-            power_time(iSensor,:) =  sqrt(sum(power.^2));
-            wData_temp(iSensor,:,:) = power ./ sqrt(median(sum(power.^2))) ;
+            power_time              = sqrt(sum(power.^2));
+            wData_temp(iSensor,:,:) = power ./ median(power_time) ;
 
             bst_progress('inc', 1); 
         end
