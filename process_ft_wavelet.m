@@ -464,6 +464,58 @@ function segments = exctractSegment(WData,time, stages, events, freqs)
     segments = segments(good_segments);
 end
 
+function segments = epochSegment(segment, epochLength, epochOverlap)
+% epochSegment: epoch the segments into sub-segment of equal lengh based on
+% epochLenght. Consecutive sub-segment will overlap based on epochOverlap.
+% both expressed in second. Inspired on bst_epoching
+% Todo: Simplify with exctractSegment. 
+
+    if length(segment) > 1
+        segments = [];
+        for kSegment = 1:length(segment)
+            segments = [segments; ... 
+                            epochSegment(segment(kSegment), epochLength, epochOverlap)];
+        end
+
+        return
+    end
+    % init variables
+    fs = round(1/(segment.time(2) - segment.time(1)));
+    nSamples = length(segment.time);
+    % convert to number of sample
+    epochLength = fs*epochLength + 1;
+    epochOverlap = fs*epochOverlap;
+    % Epoch shift
+    nShift = (epochLength - epochOverlap);
+    % Number of epochs
+    nSegment = floor( (nSamples - epochOverlap) / (epochLength - epochOverlap) );
+    
+    if nSegment == 0
+        segments = [];
+        return
+    end
+
+    % Epoch Start and End indices
+    epochIxs = zeros(nSegment, 2);
+    epochIxs(:, 1) = ((0 : (nSegment-1))' * nShift) + 1;
+    epochIxs(:, 2) = epochIxs(:, 1) + epochLength - 1;
+    
+    segments = repmat(segment, nSegment , 1);
+    good_segments = true(1, nSegment );
+    for iSegment = 1:nSegment
+
+        beging = epochIxs(iSegment,1);
+        finish = epochIxs(iSegment,2);
+
+        segments(iSegment).WData    = segment.WData(:, beging:finish);
+        segments(iSegment).time     = segment.time(beging:finish) - segment.time(beging);
+        segments(iSegment).duration = round(segments(iSegment).time(end),2);
+        segments(iSegment).offset   = segments(iSegment).offset + segment.time(beging);
+        segments(iSegment).events   = []; % todo
+    end
+
+end
+
 
 function averaged_segments = averageWithinSegment(segments)
     % Average accross time within each segment
@@ -508,6 +560,7 @@ function resampled_segments = resampleFrequency(segments, new_f)
 
 end
 
+
 function averaged_segments = averageBetweenSegment(segments)
 
     averaged_segments = segments(1);
@@ -529,7 +582,6 @@ function averaged_segments = averageBetweenSegment(segments)
     % Update the number of average. 
     
     averaged_segments.duration = mean([segments.duration]);
-
 end
 
 function segments = setTimeOrigin(segments, new_zero)
