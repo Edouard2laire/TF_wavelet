@@ -234,6 +234,14 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
     save(fullfile(out_folder,[sInputs(1).Condition(9:end) '.mat'] ), "time", "events", "WDdata",  "OPTIONS", "cluster" );
 end 
 
+function [power, time] = removeZero(power, time )
+% Remove the zeros comming from the edge effect 
+
+    is_zero = all(power == 0);
+    power = power(:, ~is_zero);
+    time  = time(~is_zero);
+
+end
 
 function idx  =  getIndexEvent(Time, Event )
     idx = zeros(1 , length(Time)); 
