@@ -141,7 +141,11 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
     end
 
     F           = sData.F(iChannels,iTime);
-    F           = nst_misc_convert_to_mumol(F,sData.DisplayUnits);
+    if strcmp(channelTypes,'nirs')
+        F = nst_misc_convert_to_mumol(F,sData.DisplayUnits);
+    else
+        F = bst_getunits(F, channelTypes, [], sData.DisplayUnits);
+    end
 
     sChannels   = sChannels.Channel(iChannels);
 
@@ -155,6 +159,7 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
     OPTIONS.wavelet.nb_levels      =  sProcess.options.nb_levels.Value{1};% number of voices
     OPTIONS.wavelet.verbose        = 1;   % verbose or not
     OPTIONS.mandatory.DataTime     = time; 
+    OPTIONS.wavelet.display.fontscale = 16;
 
     if sProcess.options.normalization.Value
         OPTIONS.wavelet.display.TaegerK = 'yes';
@@ -162,12 +167,7 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
         OPTIONS.wavelet.display.TaegerK = 'no';
     end
 
-    OPTIONS.wavelet.display.fontscale = 16;
-    OPTIONS.color_map =  [  228,  26,  28  ; ...
-                            55,  126, 184  ; ...
-                            77,  175,  74  ; ...
-                            152,  78, 163  ; ...
-                            255, 127,   0  ] ./ 255;
+
 
 
     wData           = zeros(length(cluster),  OPTIONS.wavelet.nb_levels  + 1,length(time)) ; % N_channel x Nfreq x Ntime
