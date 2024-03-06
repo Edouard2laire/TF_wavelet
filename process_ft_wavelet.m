@@ -20,7 +20,7 @@ function varargout = process_ft_wavelet( varargin )
 % For more information type "brainstorm license" at command prompt.
 % =============================================================================@
 %
-% Authors: Jean-Marc Lina, Edouard Delaire (2023)
+% Authors: Jean-Marc Lina, Edouard Delaire (2023-2024)
 
 eval(macro_method);
 end
@@ -101,24 +101,17 @@ end
 %% ===== RUN =====
 function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
     OutputFiles = {};
-
-
     addpath('/Users/edelaire1/Documents/software/fNIRS_MEG/ressources');
-    out_folder = '/Users/edelaire1/Documents/Project/CIHR/CIHR_march_2024/TF/PA03';
 
 
     % Load recordings
     if strcmp(sInputs.FileType, 'data')     % Imported data structure
         sData = in_bst_data(sInputs(1).FileName);
-        events = sData.Events;
-        isRaw  = 0;
     elseif strcmp(sInputs.FileType, 'raw')  % Continuous data file       
         sData = in_bst(sInputs(1).FileName, [], 1, 1, 'no');
-        sDataRaw = in_bst_data(sInputs(1).FileName, 'F');
-        events = sDataRaw.F.events;
-        isRaw  = 1;
     end
 
+    % Prepare Data and Options 
     sChannels        = in_bst_channel(sInputs.ChannelFile);
     channelTypes     = sProcess.options.sensortypes.Value;
     freq_range       = sProcess.options.freq_range.Value{1};
@@ -141,7 +134,7 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
     end
 
     F           = sData.F(iChannels,iTime);
-    if strcmp(channelTypes,'nirs')
+    if strcmpi(channelTypes,'nirs')
         F = nst_misc_convert_to_mumol(F,sData.DisplayUnits);
     else
         F = bst_getunits(F, channelTypes, [], sData.DisplayUnits);
@@ -169,7 +162,7 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
 
 
 
-
+    % Start of the main code
     wData           = zeros(length(cluster),  OPTIONS.wavelet.nb_levels  + 1,length(time)) ; % N_channel x Nfreq x Ntime
     OPTIONS         = repmat(OPTIONS, 1,length(cluster) );
 
@@ -208,30 +201,45 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
         % Step 4. Select frequency Band
         OPTIONS(iCluster) = select_frequency_band(freq_range(1),freq_range(2),OPTIONS(iCluster));
 
-        out_data            = struct();
-        freqWindow          = OPTIONS(iCluster).wavelet.freqWindow;
-        out_data.OPTIONS    = OPTIONS(iCluster);
-        out_data.OPTIONS.wavelet.freqs_analyzed = out_data.OPTIONS.wavelet.freqs_analyzed(freqWindow(1):freqWindow(2));
-        out_data.OPTIONS.wavelet.freqWindow = [1 , length(out_data.OPTIONS.wavelet.freqs_analyzed)];
-        out_data.cluster    = cluster(iCluster);
-        out_data.time       = time;
-        out_data.events     = events;
-        out_data.WDdata     = wData_temp(:,freqWindow(1):freqWindow(2),:);
-        out_data.WDdata_avg = squeeze(wData(iCluster,freqWindow(1):freqWindow(2),:));
+        % Step 5. Visualize the time-frequnecy map
+        displayTF_Plane(squeeze(wData(iCluster,:,:)),time, OPTIONS(iCluster));
 
-        save(fullfile(out_folder,[sInputs(1).Condition(9:end) '_clus-' cluster(iCluster).Label '.mat'] ), "out_data",'-v7.3' );
+
+        % Step 6. Save in Brainstorm
+        nfreq = length(OPTIONS(iCluster).wavelet.freqs_analyzed);
+        nTime = length(time);
+        
+        TFmask  = ones(nfreq,nTime);
+        is_zero = all(squeeze(wData(iCluster,:,:)) == 0);
+        TFmask(:, is_zero) = 0;
+         
+        sDataOut            = db_template('timefreqmat');
+        sDataOut.TF         = permute(wData_temp, [1,3,2]); %nSensor x nTime x nFreq
+        sDataOut.RowNames   = cluster(iCluster).Sensors;
+        sDataOut.TFmask     = TFmask;
+        sDataOut.DataType   = 'data';
+        sDataOut.DataFile   = sInputs.FileName;
+        sDataOut.Time       = time;
+        sDataOut.Freqs      = OPTIONS(iCluster).wavelet.freqs_analyzed;
+        sDataOut.Comment    = sprintf('CW [%s]',cluster(iCluster).Label);
+        sDataOut.Method     = 'morlet';
+        sDataOut.Measure    = 'power';
+        sDataOut.Options.PowerUnits = 'physical';
+        sDataOut.DisplayUnits       =' \mumol.l-1'; % TODO: fix display units
+
+        % Generate a new file name in the same folder
+        sStudy = bst_get('Study', sInputs.iStudy);
+        OutputFile = bst_process('GetNewFilename', bst_fileparts(sStudy.FileName), 'timefreq_wavelet');
+        sDataOut.FileName = file_short(OutputFile);
+        bst_save(OutputFile, sDataOut, 'v7');
+        % Register in database
+        db_add_data(sInputs.iStudy, OutputFile, sDataOut);
+        OutputFiles{end+1} = OutputFile;
+
     end 
 
     bst_progress('stop');
     
-    % Step 5 - Display Results
-    for iCluster = 1:length(cluster) 
-
-        WDdata = squeeze(wData(iCluster,:,:)); 
-        f1 = displayTF_Plane(WDdata,time, OPTIONS(iCluster));
-    end
-    
-    save(fullfile(out_folder,[sInputs(1).Condition(9:end) '.mat'] ), "time", "events", "WDdata",  "OPTIONS", "cluster" );
 end 
 
 function [power, time] = removeZero(power, time )
@@ -274,7 +282,6 @@ function [power, title_tf] = normalize(tf, OPTIONS)
 
     % On calcule a puissance de Taeger-Kaiser (si demandee):
     if isfield(OPTIONS.wavelet.display,'TaegerK') && strcmp(OPTIONS.wavelet.display.TaegerK,'yes') 
-        disp('we plot the Taeger-Kaiser normalisation');
         tf1 = 0.25*tf(:,3:end).*conj(tf(:,1:end-2))+0.25*conj(tf(:,3:end)).*tf(:,1:end-2);       
         power(:,2+ofs:end-1-ofs) = 0.5*abs(tf(:,2+ofs:end-1-ofs)).^2 - tf1(:,1+ofs:end-ofs);
         title_tf = 'Time-frequency Amplitude (Taeger-Kaiser normalisation)';
