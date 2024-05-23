@@ -35,8 +35,8 @@ function sProcess = GetDescription() %#ok<DEFNU>
     sProcess.Index       = 1705;
     sProcess.Description = 'http://www.fieldtriptoolbox.org/tutorial/timefrequencyanalysis';
     % Definition of the input accepted by this process
-    sProcess.InputTypes  = {'import', 'data'};
-    sProcess.OutputTypes = {'import', 'data'};
+    sProcess.InputTypes  = {'import','raw', 'data'};
+    sProcess.OutputTypes = {'import','data', 'data'};
     sProcess.nInputs     = 1;
     sProcess.nMinFiles   = 1;
     % Definition of the input accepted by this process
@@ -101,9 +101,12 @@ end
 %% ===== RUN =====
 function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
     OutputFiles = {};
-    addpath('/Users/edelaire1/Documents/software/fNIRS_MEG/ressources');
 
-
+    [isOk, errMsg, PlugDesc] = bst_plugin('Install', 'brainentropy', 1);
+    if ~isOk
+        bst_error('Brainentropy is required for the time-frequency estimation')  
+        return;
+    end
     % Load recordings
     if strcmp(sInputs.FileType, 'data')     % Imported data structure
         sData = in_bst_data(sInputs(1).FileName);
@@ -291,17 +294,30 @@ function [power, title_tf] = normalize(tf, OPTIONS)
     end
 end
 
-function f = displayTF_Plane(power,time, OPTIONS, f)
+function OPTIONS = select_frequency_band(fqmin, fqmax, OPTIONS)
+% selection of frequency band inside the frequency bounds:
+    OPTIONS.wavelet.freqs_analyzed = real(OPTIONS.wavelet.freqs_analyzed);
+    Nf = length(OPTIONS.wavelet.freqs_analyzed);
+    OPTIONS.wavelet.freqWindow = [1 Nf];
+    a = find(OPTIONS.wavelet.freqs_analyzed<fqmin,1,'last');
+    if ~isempty(a), OPTIONS.wavelet.freqWindow(1) = a; end
+    a = find(OPTIONS.wavelet.freqs_analyzed>fqmax,1,'first');
+    if ~isempty(a), OPTIONS.wavelet.freqWindow(2) = a; end
+
+end
+
+
+function hfig = displayTF_Plane(power,time, OPTIONS, hfig)
 
     if nargin  < 4
-        f = figure('units','normalized','outerposition',[0 0 1 1]);
-            ax = axes();
+        hfig = figure('units','normalized','outerposition',[0 0 1 1]);
+        ax = axes();
     else
     
         ax = gca;
     end
 
-    set(f,'CurrentAxes',ax);
+    set(hfig,'CurrentAxes',ax);
 
 
     % frequency cropping:
@@ -623,7 +639,9 @@ function f = displayPowerSpectrum(spectrum_mean,spectrum_err, labels, freqs_anal
     Yticl = mat2cell(temp,...
             ones(1, size(temp,1)),...
             size(temp,2));
-
+    if ~isfield(OPTIONS, 'color_map')
+        OPTIONS.color_map = summer(size(spectrum_mean,1));
+    end
 
     for i = 1:size(spectrum_mean,1)
         shadedErrorBar(freqs_analyzed, spectrum_mean(i,:),spectrum_err(i,:) ,'lineProps',{'LineWidth',2,  'color',OPTIONS.color_map(i,:)}); hold on;
