@@ -102,11 +102,6 @@ end
 function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
     OutputFiles = {};
 
-    [isOk, errMsg, PlugDesc] = bst_plugin('Install', 'brainentropy', 1);
-    if ~isOk
-        bst_error('Brainentropy is required for the time-frequency estimation')  
-        return;
-    end
     % Load recordings
     if strcmp(sInputs.FileType, 'data')     % Imported data structure
         sData = in_bst_data(sInputs(1).FileName);
