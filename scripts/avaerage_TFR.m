@@ -128,8 +128,7 @@ saveas(fig,fullfile(folder_out, sprintf('subject-%s_clus-%s_desc-%s.png', sub ,c
 selected_segments   = segments(cellfun(@(x) any(strcmp(sleep_stage, x)), {segments.label}) & ...
                                 [segments.duration] > 90, :);
 
-epoched_segments    = process_ft_wavelet('epochSegment',selected_segments, 60, 30);
-
+epoched_segments   = process_ft_wavelet('epochSegment',selected_segments, 60, 30);
 averaged_segments  = process_ft_wavelet('averageWithinSegment',epoched_segments);
 resampled_segments = process_ft_wavelet('resampleFrequency',averaged_segments, new_frequency);
 
