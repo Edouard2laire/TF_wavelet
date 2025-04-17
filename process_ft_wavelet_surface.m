@@ -86,9 +86,6 @@ function sProcess = GetDescription() %#ok<DEFNU>
     sProcess.options.normalization.Type    = 'checkbox';
     sProcess.options.normalization.Value   = 1;
 
-    sProcess.options.freq_range.Comment = 'Frequency Range: ';
-    sProcess.options.freq_range.Type    = 'range';
-    sProcess.options.freq_range.Value   = {[0.002, 0.5], 'Hz', 3};
 
 end
 
@@ -106,9 +103,7 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
     addpath('/home/edelaire/Desktop/fNIRS_MEG/ressources');
 
 
-    sData            = in_bst_data(sInputs.FileName);
-    freq_range       = sProcess.options.freq_range.Value{1};
-
+    sData            = in_bst_results(sInputs.FileName);
 
     if isfield(sProcess.options, 'timewindow') && isfield(sProcess.options.timewindow, 'Value') && iscell(sProcess.options.timewindow.Value) && ~isempty(sProcess.options.timewindow.Value)
         TimeWindow = sProcess.options.timewindow.Value{1};
@@ -209,6 +204,7 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
         sDataOut.DataType   = 'scout';
         sDataOut.DataFile   = sInputs.FileName;
         sDataOut.Time       = time;
+        sDataOut.Options    = OPTIONS(iCluster);
         sDataOut.Freqs      = OPTIONS(iCluster).wavelet.freqs_analyzed;
         sDataOut.Comment    = sprintf('CW [%s]', sROI.Label);
         sDataOut.Method     = 'morlet';

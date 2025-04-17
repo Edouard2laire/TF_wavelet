@@ -85,10 +85,6 @@ function sProcess = GetDescription() %#ok<DEFNU>
     sProcess.options.normalization.Type    = 'checkbox';
     sProcess.options.normalization.Value   = 1;
 
-    sProcess.options.freq_range.Comment = 'Frequency Range: ';
-    sProcess.options.freq_range.Type    = 'range';
-    sProcess.options.freq_range.Value   = {[0.002, 0.5], 'Hz', 3};
-
 end
 
 
@@ -110,12 +106,13 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
     end
 
     % Prepare Data and Options 
-    sChannels        = in_bst_channel(sInputs.ChannelFile);
-    channelTypes     = sProcess.options.sensortypes.Value;
-    freq_range       = sProcess.options.freq_range.Value{1};
+    sChannels           = in_bst_channel(sInputs.ChannelFile);
+    channelTypes        = sProcess.options.sensortypes.Value;
+    iChannels           = good_channel(sChannels.Channel, sData.ChannelFlag, channelTypes) ;
+    sChannels           = sChannels.Channel(iChannels);
 
-    iChannels         = good_channel(sChannels.Channel, sData.ChannelFlag, channelTypes) ;
-    
+
+    % Select cluster
     icluster          = cellfun(@(x)find(strcmp( {sChannels.Clusters.Label},x)),  sProcess.options.clusters.Value);
     cluster           = sChannels.Clusters(icluster);
 
@@ -138,12 +135,8 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
         F = bst_getunits(F, channelTypes, [], sData.DisplayUnits);
     end
 
-    sChannels   = sChannels.Channel(iChannels);
 
-    p = nextpow2(length(time));
-    F = padarray(F,[0 round((2^p - size(F,2))/2)],0,'both');
-    ext_time    = padarray(time,[0 round((2^p - size(time,2))/2)],NaN,'both');
-    iOrigTime   = ~isnan(ext_time);
+    [F, iOrigTime] = pad_signal(time, F);
 
     OPTIONS.wavelet.vanish_moments =  sProcess.options.vanish_moments.Value{1} ; % vanish momemts
     OPTIONS.wavelet.order          =  sProcess.options.order.Value{1} ;  % spectral decay
@@ -168,16 +161,18 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
     bst_progress('start', 'Running Time-Frequency Analysis', 'Running Time-Frequency Analysis', 0, nSensors);
 
     for iCluster = 1:length(cluster) 
+
+        
         wData_temp  = nan(length(cluster(iCluster).Sensors),  OPTIONS(iCluster).wavelet.nb_levels  + 1,length(time)) ; % N_channel x Nfreq x Ntime
 
         for iSensor = 1:length(cluster(iCluster).Sensors)
             
             % Step 1 - compute time-frequency representation
             iChannel = find(strcmp({sChannels.Name}, cluster(iCluster).Sensors(iSensor)));
-            [tmp, OPTIONS(iCluster)] = be_CWavelet(squeeze(F(iChannel,1:2^p)), OPTIONS(iCluster));
+            [tmp, OPTIONS(iCluster)] = be_CWavelet(squeeze(F(iChannel, :)), OPTIONS(iCluster));
             
             % Step 2- Normalize the TF maps ( Remove 1/f)
-            [power, title_tf] = normalize(tmp(iOrigTime,:)', OPTIONS(iCluster));
+            [power, title_tf] = apply_measure(tmp(iOrigTime,:)', OPTIONS(iCluster));
             OPTIONS(iCluster).title_tf =  title_tf ;
 
             % Step 3- Normalize the TF maps ( standardize power)
@@ -196,10 +191,7 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
 
         OPTIONS(iCluster).title_tf  = sprintf('%s - %s', strrep(cluster(iCluster).Label,'_',' '), OPTIONS(iCluster).title_tf);
         
-        % Step 4. Select frequency Band
-        OPTIONS(iCluster) = select_frequency_band(freq_range(1),freq_range(2),OPTIONS(iCluster));
-
-        % Step 5. Visualize the time-frequnecy map
+        % Step 4. Visualize the time-frequnecy map
         displayTF_Plane(squeeze(wData(iCluster,:,:)),time, OPTIONS(iCluster));
 
 
@@ -219,6 +211,7 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
         sDataOut.DataFile   = sInputs.FileName;
         sDataOut.Time       = time;
         sDataOut.Freqs      = OPTIONS(iCluster).wavelet.freqs_analyzed;
+        sDataOut.Options    = OPTIONS(iCluster);
         sDataOut.Comment    = sprintf('CW [%s]',cluster(iCluster).Label);
         sDataOut.Method     = 'morlet';
         sDataOut.Measure    = 'power';
@@ -273,12 +266,11 @@ function Event  =  extendEvent(Event, before, after  )
 
 end
 
-function [power, title_tf] = normalize(tf, OPTIONS)
+function [power, title_tf] = apply_measure(tf, OPTIONS)
 
-    ofs = ceil(0.02*size(tf,2));
-    power = zeros(size(tf));
+    ofs     = ceil(0.02*size(tf,2));
+    power   = zeros(size(tf));
 
-    % On calcule a puissance de Taeger-Kaiser (si demandee):
     if isfield(OPTIONS.wavelet.display,'TaegerK') && strcmp(OPTIONS.wavelet.display.TaegerK,'yes') 
         tf1 = 0.25*tf(:,3:end).*conj(tf(:,1:end-2))+0.25*conj(tf(:,3:end)).*tf(:,1:end-2);       
         power(:,2+ofs:end-1-ofs) = 0.5*abs(tf(:,2+ofs:end-1-ofs)).^2 - tf1(:,1+ofs:end-ofs);
@@ -664,3 +656,20 @@ function f = displayPowerSpectrum(spectrum_mean,spectrum_err, labels, freqs_anal
 
 end
 
+function [F, iOrigTime] = pad_signal(time, F)
+% Extend the signal with 0 so the lengh of the signal is a power of 2.
+%
+% Input:
+%   Time: time verctor, 1xNtime
+%   F: Data matrix, nChannel x nTime
+% Output
+%   F: extended F signal
+%   iOrigTime: index of the column of F that were in the original signal 
+%   The input signal can be retrieved using F(:, iOrigTime)
+
+
+    p = nextpow2(length(time));
+    F = padarray(F,[0 round((2^p - size(F,2))/2)],0,'both');
+    ext_time    = padarray(time,[0 round((2^p - size(time,2))/2)],NaN,'both');
+    iOrigTime   = ~isnan(ext_time);
+end
