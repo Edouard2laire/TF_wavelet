@@ -107,14 +107,16 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
 
     % Prepare Data and Options 
     sChannels           = in_bst_channel(sInputs.ChannelFile);
-    channelTypes        = sProcess.options.sensortypes.Value;
-    iChannels           = good_channel(sChannels.Channel, sData.ChannelFlag, channelTypes) ;
-    sChannels           = sChannels.Channel(iChannels);
 
 
     % Select cluster
     icluster          = cellfun(@(x)find(strcmp( {sChannels.Clusters.Label},x)),  sProcess.options.clusters.Value);
     cluster           = sChannels.Clusters(icluster);
+
+    % Select channels
+    channelTypes        = sProcess.options.sensortypes.Value;
+    iChannels           = good_channel(sChannels.Channel, sData.ChannelFlag, channelTypes) ;
+    sChannels           = sChannels.Channel(iChannels);
 
     if isfield(sProcess.options, 'timewindow') && isfield(sProcess.options.timewindow, 'Value') && iscell(sProcess.options.timewindow.Value) && ~isempty(sProcess.options.timewindow.Value)
         TimeWindow = sProcess.options.timewindow.Value{1};
@@ -584,12 +586,9 @@ function averaged_segments = averageBetweenSegment(segments)
     averaged_segments = segments(1);
 
     wData = cat(3,segments.WData);
-    averaged_segments.WData = squeeze(mean(wData,3)) ; 
-
-    if isfield(segments(1),'WDataStd')
-        disp('Replacing WDataStd by the std between segment. ')
-    end
-    averaged_segments.WDataStd = squeeze(std(wData,[],3));
+    
+    averaged_segments.WData     = squeeze(mean(wData,3)) ; 
+    averaged_segments.WDataStd  = squeeze(std(wData,[],3));
 
     % Update the number of average. 
 
@@ -612,8 +611,12 @@ end
 
 
 function f = displayPowerSpectrum(spectrum_mean,spectrum_err, labels, freqs_analyzed, OPTIONS)
-
-    f = figure('units','normalized','outerposition',[0 0 1 1]);
+    if ~isfield(OPTIONS,'hFig') || isempty(OPTIONS.hFig)
+        f = figure('units','normalized','outerposition',[0 0 1 1]);
+    else
+        f = OPTIONS.hFig;
+    end
+    
     ax = axes();
     set(f,'CurrentAxes',ax);
 
