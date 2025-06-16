@@ -296,14 +296,14 @@ function OPTIONS = select_frequency_band(fqmin, fqmax, OPTIONS)
 end
 
 
-function hfig = displayTF_Plane(power,time, OPTIONS, hfig)
+function hfig = displayTF_Plane(power,time, OPTIONS, hfig, ax)
 
     if nargin  < 4
-        hfig = figure('units','normalized','outerposition',[0 0 1 1]);
-        ax = axes();
-    else
+        hfig = figure('units','normalized','outerposition',[0 0 1 1]);    
+    end
     
-        ax = gca;
+    if nargin < 5
+        ax = axes();
     end
 
     set(hfig,'CurrentAxes',ax);
@@ -613,12 +613,14 @@ end
 function f = displayPowerSpectrum(spectrum_mean,spectrum_err, labels, freqs_analyzed, OPTIONS)
     if ~isfield(OPTIONS,'hFig') || isempty(OPTIONS.hFig)
         f = figure('units','normalized','outerposition',[0 0 1 1]);
+            ax = axes();
+            set(f,'CurrentAxes',ax);
     else
-        f = OPTIONS.hFig;
+        f = figure(OPTIONS.hFig);
+        ax = gca;
     end
     
-    ax = axes();
-    set(f,'CurrentAxes',ax);
+
 
      % bornes et marqueurs de l'axe frequence
     LFmin = log2(freqs_analyzed(1));
@@ -650,7 +652,6 @@ function f = displayPowerSpectrum(spectrum_mean,spectrum_err, labels, freqs_anal
             'XTick',Ytic(:),...
             'XTickLabel',Yticl,...
             'FontName','Times',...
-            'FontAngle','Italic',...
             'FontSize',  OPTIONS.wavelet.display.fontscale);
 
     if strcmp(OPTIONS.wavelet.display.TaegerK ,'no')
