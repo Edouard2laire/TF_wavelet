@@ -164,13 +164,13 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
         % Step 1 - compute time-frequency representation
         fprintf('Tf-nirs > Computing the CW decomposition ... ')
         [power, OPTIONS(iCluster)] = be_CWavelet(squeeze(data_cortex(:, 1:2^p)), OPTIONS(iCluster));
-        power = permute(power, [1, 3, 2]); % N_channel x Nfreq x Ntime
+        power = permute(power(:, iOrigTime, :), [1, 3, 2]); % N_channel x Nfreq x Ntime
         fprintf(' Done. \n')
 
 
         % Step 2- Normalize the TF maps
         fprintf('Tf-nirs > Computing the Teager Keaser nornmalization ... ')
-        [power, title_tf] = apply_measure(power(:, :, iOrigTime), OPTIONS);
+        [power, title_tf] = be_apply_measure(power, OPTIONS);
         OPTIONS(iCluster).title_tf =  title_tf ;
         fprintf(' Done. \n')
     
@@ -186,7 +186,7 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
         end
         fprintf(' Done. \n')
 
-        % Step 3 - Average accross 
+        % Step 3 - Average accross vertex
         if length(vertex) > 1
             wData =  mean(power);
         else
@@ -284,63 +284,6 @@ function Event  =  extendEvent(Event, before, after  )
     Event.times(2,:) = Event.times(2,:) + after;
 
     Event.times = Event.times(:, Event.times(2,:) > Event.times(1,:));
-
-end
-
-function [power, title_tf] = normalize(tf, OPTIONS)
-    [nCh, nT] = size(tf);
-    ofs = ceil(0.02 * nT);
-    idx_start = 2 + ofs;
-    idx_end   = nT - 1 - ofs;
-    
-    % Initialize power matrix (can also be omitted if only storing the output slices)
-    power = zeros(nCh, nT);
-    
-    % Define window parameters
-    win_size = 200;  % adjust based on available memory
-    step_size = win_size;  % can use overlap if needed
-    
-    % Loop over time in windows
-    for t_start = idx_start:step_size:idx_end
-        t_end = min(t_start + win_size - 1, idx_end);
-        
-        % Indices for tf1 = tf(:,3:end) * conj(tf(:,1:end-2));
-        t1 = t_start - 1;
-        t2 = t_start + 1;
-
-        if t1 < 1 || t2 > nT
-            continue;  % skip invalid bounds
-        end
-    
-        % Extract only the needed slices
-        tf_m1 = tf(:, t1:t_end-1);     % tf(:,1:end-2)
-        tf_p1 = tf(:, t2:t_end+1);     % tf(:,3:end)
-        tf_0  = tf(:, t_start:t_end);  % tf(:,2+ofs:end-1-ofs)
-    
-        % Compute tf1 and power for this chunk
-        tf1_chunk = 0.25 * tf_p1 .* conj(tf_m1) + 0.25 * conj(tf_p1) .* tf_m1;
-        power_chunk = 0.5 * abs(tf_0).^2 - tf1_chunk;
-    
-        % Store result
-        power(:, t_start:t_end) = power_chunk;
-        title_tf = 'Time-frequency Amplitude (Taeger-Kaiser normalisation)';
-    end
-end
-
-function [power, title_tf] = apply_measure(tf, OPTIONS)
-
-    ofs     = ceil(0.02*size(tf,3));
-    power   = zeros(size(tf));
-
-    if isfield(OPTIONS.wavelet.display,'TaegerK') && strcmp(OPTIONS.wavelet.display.TaegerK,'yes') 
-        tf1 = 0.25*tf(:,:,3:end).*conj(tf(:,:,1:end-2))+0.25*conj(tf(:,:,3:end)).*tf(:,:,1:end-2);       
-        power(:,:,2+ofs:end-1-ofs) = 0.5*abs(tf(:,:,2+ofs:end-1-ofs)).^2 - tf1(:,:,1+ofs:end-ofs);
-        title_tf = 'Time-frequency Amplitude (Taeger-Kaiser normalisation)';
-    else
-        power(:,2+ofs:end-1-ofs) = 0.5*abs(tf(:,2+ofs:end-1-ofs)).^2;
-        title_tf = 'Time-frequency Amplitude (no normalisation)';
-    end
-
 
 end
 
