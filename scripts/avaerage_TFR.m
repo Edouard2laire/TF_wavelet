@@ -6,7 +6,7 @@ end
 
 close all;
 
-path = '/Users/edelaire1/Documents/Project/CIHR/CIHR_march_2024/TF/PA03';
+path = '/Users/edelaire1/Documents/Project/wMEM-fnirs/Figure/TFR';
 folder_out = fullfile(path,'figures');
 
 if ~exist(folder_out)
@@ -25,8 +25,7 @@ hem     = 'HbO';
 new_frequency = logspace( log10(0.002), log10(0.5), 500);
 
 %% options
-options = load(fullfile(path,'options.mat')).options;
-options.wavelet = rmfield(options.wavelet,'freqWindow');
+options = struct();
 options.colormap = 'jet';
 options.clim = [0 0.25];
 options.wavelet.display.fontscale = 20;

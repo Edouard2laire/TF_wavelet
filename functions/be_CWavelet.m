@@ -37,39 +37,52 @@ function [WData, OPTIONS] = be_CWavelet(data, OPTIONS, varargin)
 %    along with BEst. If not, see <http://www.gnu.org/licenses/>.
 % -------------------------------------------------------------------------   
 
-options_only = 0;
-if nargin==1
-    options_only = 1;
-end
-% ----------------- les data
+    options_only = 0;
+    if nargin==1
+        options_only = 1;
+    end
+    
+    % Set wavelet parameters:
+    n       = OPTIONS.wavelet.vanish_moments;
+    m       = OPTIONS.wavelet.order;
+    J       = OPTIONS.wavelet.nb_levels;
+    verbose = OPTIONS.wavelet.verbose;  
+    dt      = diff( OPTIONS.mandatory.DataTime([1 2]) );
+    
+    [M,N] = size(data);
 
-% Set wavelet parameters:
-n       = OPTIONS.wavelet.vanish_moments;
-m       = OPTIONS.wavelet.order;
-J       = OPTIONS.wavelet.nb_levels;
-verbose = OPTIONS.wavelet.verbose;  
-dt      = diff( OPTIONS.mandatory.DataTime([1 2]) );
+    % --- definition de l'ondelette
+    [wmin,wmax] = Morse_support_spectral(n,m);
+    [tmin,tmax] = Morse_support_temporel(n,m);
 
-[M,N] = size(data);
-% --- definition de l'ondelette
-[wmin,wmax] = Morse_support_spectral(n,m);
-[tmin,tmax] = Morse_support_temporel(n,m);
-f0          = (((n+0.5)/m).^(1/m))/2/pi; % frequence centrale de l'ondelette de Cauchy
-% --- echelles min et max
-a_max = (N-3)*dt/(tmax-tmin);
-a_min = wmax/pi*dt;
-% --- resolution en octaves et en voies
-dj = log2(a_max/a_min)/J;
-aj = a_min*2.^((0:J)*dj);
-% --- coefficients de fourier
-Cwave = zeros(M,N,J+1);
-Cwave = Cwave + 1i*Cwave;
-WData = [];
-% --- calcul des modes en Ondelettes
-%norm = ones(length(aj),1);
-%norm = sqrt(aj);
+    % frequence centrale de l'ondelette de Cauchy
+    f0          = (((n+0.5)/m).^(1/m))/2/pi; 
 
-if ~options_only
+    % --- echelles min et max
+    a_max = (N-3)*dt/(tmax-tmin);
+    a_min = wmax/pi*dt;
+
+    % --- resolution en octaves et en voies
+    dj = log2(a_max/a_min)/J;
+    aj = a_min*2.^((0:J)*dj);
+
+    % --- coefficients de fourier
+    Cwave = repmat(complex(0,0), M,N,J+1);
+    WData = [];
+    
+    % --- options
+    OPTIONS.wavelet.scale_analyzed  = fliplr(aj);
+    OPTIONS.wavelet.freqs_analyzed  = f0./fliplr(aj);
+    OPTIONS.wavelet.Scone  = (f0/dt)./[1E-9,1:((N+1)/2-1),fliplr((1:(N/2-1))),1E-9];
+    
+    if options_only
+        return;
+    end
+    
+    % --- calcul des modes en Ondelettes
+    %norm = ones(length(aj),1);
+    %norm = sqrt(aj);
+
     % Pad signal - avoid border effects
     sP2 = floor(log2(N));
     pdS = 0;
@@ -103,12 +116,6 @@ if ~options_only
     end
 
     WData = squeeze(Cwave);
-end
-
-% sortie :
-OPTIONS.wavelet.scale_analyzed  = fliplr(aj);
-OPTIONS.wavelet.freqs_analyzed  = f0./fliplr(aj);
-OPTIONS.wavelet.Scone  = (f0/dt)./[1E-9,1:((N+1)/2-1),fliplr((1:(N/2-1))),1E-9];
 end
 
 % ========================================================================

@@ -41,8 +41,8 @@ function sProcess = GetDescription() %#ok<DEFNU>
     sProcess.nInputs     = 1;
     sProcess.nMinFiles   = 1;
     % Definition of the input accepted by this process
-    sProcess.InputTypes  = {'data', 'results', 'matrix'};
-    sProcess.OutputTypes = {'timefreq', 'timefreq', 'timefreq'};
+    sProcess.InputTypes  = { 'results'};
+    sProcess.OutputTypes = { 'timefreq'};
     sProcess.nInputs     = 1;
     sProcess.nMinFiles   = 1;
     % Options: Time window
@@ -86,9 +86,6 @@ function sProcess = GetDescription() %#ok<DEFNU>
     sProcess.options.normalization.Type    = 'checkbox';
     sProcess.options.normalization.Value   = 1;
 
-    sProcess.options.freq_range.Comment = 'Frequency Range: ';
-    sProcess.options.freq_range.Type    = 'range';
-    sProcess.options.freq_range.Value   = {[0.002, 0.5], 'Hz', 3};
 
 end
 
@@ -102,13 +99,10 @@ end
 %% ===== RUN =====
 function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
     OutputFiles = {};
+    
+    bst_plugin('Load', 'tfnirs');
 
-    addpath('/home/edelaire/Desktop/fNIRS_MEG/ressources');
-
-
-    sData            = in_bst_data(sInputs.FileName);
-    freq_range       = sProcess.options.freq_range.Value{1};
-
+    sData            = load(file_fullpath(sInputs.FileName));
 
     if isfield(sProcess.options, 'timewindow') && isfield(sProcess.options.timewindow, 'Value') && iscell(sProcess.options.timewindow.Value) && ~isempty(sProcess.options.timewindow.Value)
         TimeWindow = sProcess.options.timewindow.Value{1};
@@ -122,15 +116,21 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
         time  = sData.Time(iTime);
     end
 
+    % Find the appropriate padding for this dataset
+    p           = nextpow2(length(time)); 
+    padding     = [0 round((2^p - size(time,2))/2)];
+    ext_time    = padarray(time, padding, NaN,'both');
+    iOrigTime   = ~isnan(ext_time);
+
+    % Load data:
+    F           = sData.ImageGridAmp;
+
+    % Load ROIs
     sSubject    = bst_get('Subject',sInputs.SubjectName );
-    sCortex    = in_tess_bst(sSubject.Surface(sSubject.iCortex).FileName);
-
-    % ROI_select  = 'ReconFocal';
-    ROI  =  sProcess.options.scouts.Value;
-
-    iAtlas = find(strcmp( {sCortex.Atlas.Name},ROI{1}));
-
-    iRois          = cellfun(@(x)find(strcmp( {sCortex.Atlas(iAtlas).Scouts.Label},x)),   ROI{2});
+    sCortex     = in_tess_bst(sSubject.Surface(sSubject.iCortex).FileName);
+    ROI         = sProcess.options.scouts.Value;
+    iAtlas      = find(strcmp( {sCortex.Atlas.Name},ROI{1}));
+    iRois       = cellfun(@(x)find(strcmp( {sCortex.Atlas(iAtlas).Scouts.Label},x)),   ROI{2});
 
     ROI_select = {sCortex.Atlas(iAtlas).Scouts(iRois).Label};
     if isempty(iRois)
@@ -138,19 +138,10 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
         return;
     end
 
-    F           = sData.ImageGridAmp(:,iTime);
-
-    p = nextpow2(length(time));
-    F = padarray(F,[0 round((2^p - size(F,2))/2)],0,'both');
-    ext_time    = padarray(time,[0 round((2^p - size(time,2))/2)],NaN,'both');
-    iOrigTime   = ~isnan(ext_time);
-
-
-
     OPTIONS.wavelet.vanish_moments =  sProcess.options.vanish_moments.Value{1} ; % vanish momemts
     OPTIONS.wavelet.order          =  sProcess.options.order.Value{1} ;  % spectral decay
     OPTIONS.wavelet.nb_levels      =  sProcess.options.nb_levels.Value{1};% number of voices
-    OPTIONS.wavelet.verbose        = 1;   % verbose or not
+    OPTIONS.wavelet.verbose        = 0;   % verbose or not
     OPTIONS.mandatory.DataTime     = time; 
 
     if sProcess.options.normalization.Value
@@ -159,38 +150,41 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
         OPTIONS.wavelet.display.TaegerK = 'no';
     end
 
+    
 
-
-    OPTIONS         = repmat(OPTIONS, 1,length(ROI_select) );
-
-    nSensors = sum(cellfun(@(x)length(x),{sCortex.Atlas(iAtlas).Scouts(iRois).Vertices}));
-    bst_progress('start', 'Running Time-Frequency Analysis', 'Running Time-Frequency Analysis', 0, nSensors);
+    OPTIONS     = repmat(OPTIONS, 1,length(ROI_select) );
+    bst_progress('start', 'Running Time-Frequency Analysis', 'Running Time-Frequency Analysis', 0, length(ROI_select));
     for iCluster = 1:length(ROI_select) 
-        sROI = sCortex.Atlas(iAtlas).Scouts(iRois(iCluster));
-        vertex = sROI.Vertices;
 
-        wData_temp  = nan(length(vertex),  OPTIONS(iCluster).wavelet.nb_levels  + 1,length(time)) ; % N_channel x Nfreq x Ntime
-        for iSensor = 1:length(vertex)
-            
-            % Step 1 - compute time-frequency representation
-            [tmp, OPTIONS(iCluster)] = be_CWavelet(squeeze(F(vertex(iSensor),1:2^p)), OPTIONS(iCluster));
-            
-            % Step 2- Normalize the TF maps
-            [power, title_tf] = normalize(tmp(iOrigTime,:)', OPTIONS(iCluster));
-            OPTIONS(iCluster).title_tf =  title_tf ;
+        sROI    = sCortex.Atlas(iAtlas).Scouts(iRois(iCluster));
+        vertex  = sROI.Vertices;
+        
+        data_cortex = getData(F , vertex, iTime, padding);
 
-                        % Step 3- Normalize the TF maps ( standardize power)
-            power_time              = sqrt(sum(power.^2));
-            wData_temp(iSensor,:,:) = power ./ median(power_time) ;
+        % Step 1 - compute time-frequency representation
+        fprintf('Tf-nirs > Computing the CW decomposition ... ')
+        [power, OPTIONS(iCluster)] = be_CWavelet(data_cortex(:, 1:2^p), OPTIONS(iCluster));
+        power = permute(power(:, iOrigTime, :), [1, 3, 2]); % N_channel x Nfreq x Ntime
+        fprintf(' Done. \n')
 
-            bst_progress('inc', 1); 
-        end
 
-        % Step 3 - Average accross 
+        % Step 2- Normalize the TF maps
+        fprintf('Tf-nirs > Computing the Teager Keaser nornmalization ... ')
+        [power, title_tf] = be_apply_measure(power, OPTIONS);
+        OPTIONS(iCluster).title_tf =  title_tf ;
+        fprintf(' Done. \n')
+    
+
+        % Step 3- Normalize the TF maps ( standardize power)
+        fprintf('Tf-nirs > Normalizing the power of each vertex... ')
+        power = be_scale_TF(power);
+        fprintf(' Done. \n')
+
+        % Step 3 - Average accross vertex
         if length(vertex) > 1
-            wData =  mean(wData_temp);
+            wData =  mean(power);
         else
-            wData =  wData_temp;
+            wData =  power;
         end
 
         OPTIONS(iCluster).title_tf  = sprintf('%s - %s', strrep(sROI.Label,'_',' '), OPTIONS(iCluster).title_tf);
@@ -209,6 +203,7 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
         sDataOut.DataType   = 'scout';
         sDataOut.DataFile   = sInputs.FileName;
         sDataOut.Time       = time;
+        sDataOut.Options    = OPTIONS(iCluster);
         sDataOut.Freqs      = OPTIONS(iCluster).wavelet.freqs_analyzed;
         sDataOut.Comment    = sprintf('CW [%s]', sROI.Label);
         sDataOut.Method     = 'morlet';
@@ -224,13 +219,47 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
         % Register in database
         db_add_data(sInputs.iStudy, OutputFile, sDataOut);
         OutputFiles{end+1} = OutputFile;
-
+        
+        bst_progress('inc', 1);
     end
 
     bst_progress('stop');
 end 
 
 
+function data = getData(F , vertex, iTime, padding)
+
+    if ~iscell(F)
+        F = {F};
+    end
+
+    % create spatial mapping and reduce the spatial dimension 
+    mapping = zeros(length(vertex), size(F{1},1)); 
+    for iNode = 1:length(vertex)
+        mapping(iNode,vertex(iNode)) = 1;
+    end
+    mapping  = sparse(mapping);
+    F{1}  = mapping * F{1};
+
+    % create the temporal mapping and reduce the temporal dimension 
+    mapping = zeros(size(F{end},2), length(iTime)); 
+    for iNode = 1:length(iTime)
+        mapping(iTime(iNode),iNode) = 1;
+    end
+    mapping  = sparse(mapping);
+    F{end} = F{end} * mapping;
+
+
+    % Apply the mapping to the data
+    tmp = F{1};
+    for iDecomposition = 2 : length(F)
+     tmp = tmp * F{iDecomposition};
+    end
+
+    data = full(tmp);
+    data = padarray(data, padding, 0, 'both');
+
+end
 
 
 function idx  =  getIndexEvent(Time, Event )
@@ -251,23 +280,6 @@ function Event  =  extendEvent(Event, before, after  )
 
     Event.times = Event.times(:, Event.times(2,:) > Event.times(1,:));
 
-end
-
-function [power, title_tf] = normalize(tf, OPTIONS)
-
-    ofs = ceil(0.02*size(tf,2));
-    power = zeros(size(tf));
-
-    % On calcule a puissance de Taeger-Kaiser (si demandee):
-    if isfield(OPTIONS.wavelet.display,'TaegerK') && strcmp(OPTIONS.wavelet.display.TaegerK,'yes') 
-        disp('we plot the Taeger-Kaiser normalisation');
-        tf1 = 0.25*tf(:,3:end).*conj(tf(:,1:end-2))+0.25*conj(tf(:,3:end)).*tf(:,1:end-2);       
-        power(:,2+ofs:end-1-ofs) = 0.5*abs(tf(:,2+ofs:end-1-ofs)).^2 - tf1(:,1+ofs:end-ofs);
-        title_tf = 'Time-frequency Amplitude (Taeger-Kaiser normalisation)';
-    else
-        power(:,2+ofs:end-1-ofs) = 0.5*abs(tf(:,2+ofs:end-1-ofs)).^2;
-        title_tf = 'Time-frequency Amplitude (no normalisation)';
-    end
 end
 
 function f = displayTF_Plane(power,time, OPTIONS)
