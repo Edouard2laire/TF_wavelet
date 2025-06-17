@@ -99,6 +99,8 @@ end
 %% ===== RUN =====
 function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
     OutputFiles = {};
+    
+    bst_plugin('Load', 'tfnirs');
 
     sData            = load(file_fullpath(sInputs.FileName));
 

@@ -98,6 +98,8 @@ end
 function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
     OutputFiles = {};
 
+    bst_plugin('Load', 'tfnirs');
+
     % Load recordings
     if strcmp(sInputs.FileType, 'data')     % Imported data structure
         sData = in_bst_data(sInputs(1).FileName);
