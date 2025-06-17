@@ -177,13 +177,7 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
 
         % Step 3- Normalize the TF maps ( standardize power)
         fprintf('Tf-nirs > Normalizing the power of each vertex... ')
-        for iSensor = 1:length(vertex)
-
-            power_time         = sqrt(sum(power(iSensor,:,:).^2));
-            power(iSensor,:,:) = power(iSensor,:,:) ./ median(power_time) ;
-
-            bst_progress('inc', 1); 
-        end
+        power = be_scale_TF(power);
         fprintf(' Done. \n')
 
         % Step 3 - Average accross vertex
