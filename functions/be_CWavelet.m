@@ -46,7 +46,6 @@ function [WData, OPTIONS] = be_CWavelet(data, OPTIONS, varargin)
     n       = OPTIONS.wavelet.vanish_moments;
     m       = OPTIONS.wavelet.order;
     J       = OPTIONS.wavelet.nb_levels;
-    verbose = OPTIONS.wavelet.verbose;  
     dt      = diff( OPTIONS.mandatory.DataTime([1 2]) );
     
     [M,N] = size(data);
@@ -79,10 +78,7 @@ function [WData, OPTIONS] = be_CWavelet(data, OPTIONS, varargin)
         return;
     end
     
-    % --- calcul des modes en Ondelettes
-    %norm = ones(length(aj),1);
-    %norm = sqrt(aj);
-
+ 
     % Pad signal - avoid border effects
     sP2 = floor(log2(N));
     pdS = 0;
@@ -100,19 +96,13 @@ function [WData, OPTIONS] = be_CWavelet(data, OPTIONS, varargin)
     wk = [0., wk, -wk(fix((N2-1)/2):-1:1)];
 
     % Transform 
+    sqrt_aj = sqrt(aj);
     for ai = 1:J+1
-        norm = sqrt(aj);
-        psi_wk = ones(M,1) * ( Morse_w(aj(ai)*wk,n,m) * norm(ai) ) ;
-        tmpDT = ifft(f.*psi_wk,[],2);
-        Cwave(:,:,J-ai+2) = tmpDT( :, (pdS+1):(end-pdS) );    
-        if verbose
-            if ai == 1, hwait = waitbar(0,['calcul des coeff. en ondelette de Morse, n=',num2str(n),',m=',num2str(m)]); end;
-            waitbar(ai/(J+1),hwait)
-        end
-    end
 
-    if exist('hwait', 'var')
-        close(hwait)
+        psi_wk = ones(M,1) * ( Morse_w(aj(ai)*wk,n,m) * sqrt_aj(ai) ) ;
+        tmpDT = ifft(f.*psi_wk, [], 2);
+        Cwave(:,:,J-ai+2) = tmpDT( :, (pdS+1):(end-pdS) );  
+
     end
 
     WData = squeeze(Cwave);
@@ -124,24 +114,26 @@ function y = Morse_w(w,n,m)
     wp = w(w>0);
     y(w>0) = wp.^n.*exp(-wp.^m);
 end
+
 function [tmin,tmax] = Morse_support_temporel(n,m)
     s = 0.01;
     tmax = sqrt(s^(-1/(n+1))*(gamma(n+1)/2/pi)^(2/(n+1))-1);
     tmin = -tmax;
 end
+
 function [wmin,wmax] = Morse_support_spectral(n,m)
     s  = 0.01;
     s0 = s^(1/n);
     s1 = -log(s)/n;
     w0 = 0;
-        for i=1:50
-            w0 = w0^m;
-            w0 = s0*exp(w0/n);
-        end
+    for i=1:50
+        w0 = w0^m;
+        w0 = s0*exp(w0/n);
+    end
     wmin = w0;
     w0 = n;
-        for i = 1:50
+    for i = 1:50
         w0 = s1+n/m*log(w0);
-        end
+    end
     wmax = w0^(1/m);
 end
