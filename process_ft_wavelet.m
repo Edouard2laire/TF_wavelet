@@ -156,57 +156,45 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
 
 
     % Start of the main code
-    wData           = zeros(length(cluster),  OPTIONS.wavelet.nb_levels  + 1,length(time)) ; % N_channel x Nfreq x Ntime
     OPTIONS         = repmat(OPTIONS, 1,length(cluster) );
-
-    nSensors = sum(cellfun(@(x)length(x),{cluster.Sensors}));
-    bst_progress('start', 'Running Time-Frequency Analysis', 'Running Time-Frequency Analysis', 0, nSensors);
+    bst_progress('start', 'Running Time-Frequency Analysis', 'Running Time-Frequency Analysis', 0, length(cluster));
 
     for iCluster = 1:length(cluster) 
 
-        
-        wData_temp  = nan(length(cluster(iCluster).Sensors),  OPTIONS(iCluster).wavelet.nb_levels  + 1,length(time)) ; % N_channel x Nfreq x Ntime
+        iChannel = channel_find(sChannels, cluster(iCluster).Sensors);
+        data = F(iChannel, :);
 
-        for iSensor = 1:length(cluster(iCluster).Sensors)
-            
-            % Step 1 - compute time-frequency representation
-            iChannel = find(strcmp({sChannels.Name}, cluster(iCluster).Sensors(iSensor)));
-            [tmp, OPTIONS(iCluster)] = be_CWavelet(squeeze(F(iChannel, :)), OPTIONS(iCluster));
-            
-            % Step 2- Normalize the TF maps ( Remove 1/f)
-            [power, title_tf] = apply_measure(tmp(iOrigTime,:)', OPTIONS(iCluster));
-            OPTIONS(iCluster).title_tf =  title_tf ;
+        % Step 1 - compute time-frequency representation
+        fprintf('Tf-nirs > Computing the CW decomposition ... ')
+        [power, OPTIONS(iCluster)] = be_CWavelet(data(:, 1:2^p), OPTIONS(iCluster));
+        power = permute(power(:, iOrigTime, :), [1, 3, 2]); % N_channel x Nfreq x Ntime
+        fprintf(' Done. \n')
 
-            % Step 3- Normalize the TF maps ( standardize power)
-            power_time              = sqrt(sum(power.^2));
-            wData_temp(iSensor,:,:) = power ./ median(power_time) ;
+        % Step 2- Normalize the TF maps
+        fprintf('Tf-nirs > Computing the Teager Keaser nornmalization ... ')
+        [power, title_tf] = be_apply_measure(power, OPTIONS);
+        OPTIONS(iCluster).title_tf =  title_tf ;
+        fprintf(' Done. \n')
+    
 
-            bst_progress('inc', 1); 
-        end
+        % Step 3- Normalize the TF maps ( standardize power)
+        fprintf('Tf-nirs > Normalizing the power of each vertex... ')
+        power = be_scale_TF(power);
+        fprintf(' Done. \n')
 
-        % Step 4 - Average accross 
-        if length(cluster(iCluster).Sensors) > 1
-            wData(iCluster,:,:) = squeeze(mean(wData_temp));
-        else
-            wData(iCluster,:,:) = squeeze(wData_temp);
-        end
 
         OPTIONS(iCluster).title_tf  = sprintf('%s - %s', strrep(cluster(iCluster).Label,'_',' '), OPTIONS(iCluster).title_tf);
         
-        % Step 4. Visualize the time-frequnecy map
-        displayTF_Plane(squeeze(wData(iCluster,:,:)),time, OPTIONS(iCluster));
-
-
         % Step 6. Save in Brainstorm
         nfreq = length(OPTIONS(iCluster).wavelet.freqs_analyzed);
         nTime = length(time);
         
         TFmask  = ones(nfreq,nTime);
-        is_zero = all(squeeze(wData(iCluster,:,:)) == 0);
+        is_zero = all(squeeze(power(1,:)) == 0);
         TFmask(:, is_zero) = 0;
          
         sDataOut            = db_template('timefreqmat');
-        sDataOut.TF         = permute(wData_temp, [1,3,2]); %nSensor x nTime x nFreq
+        sDataOut.TF         = permute(power, [1,3,2]); %nSensor x nTime x nFreq
         sDataOut.RowNames   = cluster(iCluster).Sensors;
         sDataOut.TFmask     = TFmask;
         sDataOut.DataType   = 'data';
@@ -228,7 +216,8 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
         % Register in database
         db_add_data(sInputs.iStudy, OutputFile, sDataOut);
         OutputFiles{end+1} = OutputFile;
-
+        
+        bst_progress('inc', 1);
     end 
 
     bst_progress('stop');

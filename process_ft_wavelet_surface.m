@@ -151,19 +151,17 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
     
 
     OPTIONS     = repmat(OPTIONS, 1,length(ROI_select) );
-    nSensors    = sum(cellfun(@(x)length(x),{sCortex.Atlas(iAtlas).Scouts(iRois).Vertices}));
-
-    bst_progress('start', 'Running Time-Frequency Analysis', 'Running Time-Frequency Analysis', 0, nSensors);
+    bst_progress('start', 'Running Time-Frequency Analysis', 'Running Time-Frequency Analysis', 0, length(ROI_select));
     for iCluster = 1:length(ROI_select) 
-        sROI = sCortex.Atlas(iAtlas).Scouts(iRois(iCluster));
-        vertex = sROI.Vertices;
-        
 
+        sROI    = sCortex.Atlas(iAtlas).Scouts(iRois(iCluster));
+        vertex  = sROI.Vertices;
+        
         data_cortex = getData(F , vertex, iTime, padding);
 
         % Step 1 - compute time-frequency representation
         fprintf('Tf-nirs > Computing the CW decomposition ... ')
-        [power, OPTIONS(iCluster)] = be_CWavelet(squeeze(data_cortex(:, 1:2^p)), OPTIONS(iCluster));
+        [power, OPTIONS(iCluster)] = be_CWavelet(data_cortex(:, 1:2^p), OPTIONS(iCluster));
         power = permute(power(:, iOrigTime, :), [1, 3, 2]); % N_channel x Nfreq x Ntime
         fprintf(' Done. \n')
 
@@ -219,7 +217,8 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
         % Register in database
         db_add_data(sInputs.iStudy, OutputFile, sDataOut);
         OutputFiles{end+1} = OutputFile;
-
+        
+        bst_progress('inc', 1);
     end
 
     bst_progress('stop');
