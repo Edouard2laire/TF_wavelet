@@ -150,42 +150,53 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
         OPTIONS.wavelet.display.TaegerK = 'no';
     end
 
-    
-
+   
     OPTIONS     = repmat(OPTIONS, 1,length(ROI_select) );
-    bst_progress('start', 'Running Time-Frequency Analysis', 'Running Time-Frequency Analysis', 0, length(ROI_select));
+
     for iCluster = 1:length(ROI_select) 
 
         sROI    = sCortex.Atlas(iAtlas).Scouts(iRois(iCluster));
         vertex  = sROI.Vertices;
-        
-        data_cortex = getData(F , vertex, iTime, padding);
 
-        % Step 1 - compute time-frequency representation
-        fprintf('Tf-nirs > Computing the CW decomposition ... ')
-        [power, OPTIONS(iCluster)] = be_CWavelet(data_cortex(:, 1:2^p), OPTIONS(iCluster));
-        power = permute(power(:, iOrigTime, :), [1, 3, 2]); % N_channel x Nfreq x Ntime
-        fprintf(' Done. \n')
+        block_size = 5;
+        nBlock  = ceil(length(vertex)/block_size);         
+        wData = 0;
+        bst_progress('start', 'Running Time-Frequency Analysis', 'Running Time-Frequency Analysis', 0, nBlock);
+
+        for k=0:(nBlock-1)
+            idx = (1+ k*block_size):(block_size*(k+1));
+            idx = idx( idx <= length(vertex));
+
+            data_cortex = getData(F , vertex(idx), iTime, padding);
+
+            % Step 1 - compute time-frequency representation
+            fprintf('Tf-nirs > Computing the CW decomposition ... ')
+            [power, OPTIONS(iCluster)] = be_CWavelet(data_cortex(:, 1:2^p), OPTIONS(iCluster));
+            power = permute(power(:, iOrigTime, :), [1, 3, 2]); % N_channel x Nfreq x Ntime
+            fprintf(' Done. \n')
 
 
-        % Step 2- Normalize the TF maps
-        fprintf('Tf-nirs > Computing the Teager Keaser nornmalization ... ')
-        [power, title_tf] = be_apply_measure(power, OPTIONS);
-        OPTIONS(iCluster).title_tf =  title_tf ;
-        fprintf(' Done. \n')
+            % Step 2- Normalize the TF maps
+            fprintf('Tf-nirs > Computing the Teager Keaser nornmalization ... ')
+            [power, title_tf] = be_apply_measure(power, OPTIONS);
+            OPTIONS(iCluster).title_tf =  title_tf ;
+            fprintf(' Done. \n')
     
 
-        % Step 3- Normalize the TF maps ( standardize power)
-        fprintf('Tf-nirs > Normalizing the power of each vertex... ')
-        power = be_scale_TF(power);
-        fprintf(' Done. \n')
+            % Step 3- Normalize the TF maps ( standardize power)
+            fprintf('Tf-nirs > Normalizing the power of each vertex... ')
+            power = be_scale_TF(power);
+            fprintf(' Done. \n')
 
-        % Step 3 - Average accross vertex
-        if length(vertex) > 1
-            wData =  mean(power);
-        else
-            wData =  power;
+            % Step 3 - Average accross vertex
+            if length(vertex) > 1
+                wData = wData + ( sum(power, 1) ./ length(vertex) );
+            else
+                wData = wData + ( power ./ length(vertex));
+            end
+            bst_progress('inc', 1);
         end
+    
 
         OPTIONS(iCluster).title_tf  = sprintf('%s - %s', strrep(sROI.Label,'_',' '), OPTIONS(iCluster).title_tf);
 
@@ -220,7 +231,6 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
         db_add_data(sInputs.iStudy, OutputFile, sDataOut);
         OutputFiles{end+1} = OutputFile;
         
-        bst_progress('inc', 1);
     end
 
     bst_progress('stop');
@@ -234,21 +244,12 @@ function data = getData(F , vertex, iTime, padding)
     end
 
     % create spatial mapping and reduce the spatial dimension 
-    mapping = zeros(length(vertex), size(F{1},1)); 
-    for iNode = 1:length(vertex)
-        mapping(iNode,vertex(iNode)) = 1;
-    end
-    mapping  = sparse(mapping);
+    mapping = sparse(1:length(vertex), vertex, 1, length(vertex), size(F{1},1));
     F{1}  = mapping * F{1};
 
     % create the temporal mapping and reduce the temporal dimension 
-    mapping = zeros(size(F{end},2), length(iTime)); 
-    for iNode = 1:length(iTime)
-        mapping(iTime(iNode),iNode) = 1;
-    end
-    mapping  = sparse(mapping);
+    mapping = sparse(iTime,  1:length(iTime), 1, size(F{end},2), length(iTime));
     F{end} = F{end} * mapping;
-
 
     % Apply the mapping to the data
     tmp = F{1};
