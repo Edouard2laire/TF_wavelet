@@ -44,13 +44,14 @@ function sProcess = GetDescription() %#ok<DEFNU>
     sProcess.OutputTypes = {'timefreq', 'timefreq', 'timefreq'};
     sProcess.nInputs     = 1;
     sProcess.nMinFiles   = 1;
+
     % Options: Time window
     sProcess.options.timewindow.Comment = 'Time window:';
     sProcess.options.timewindow.Type    = 'timewindow';
     sProcess.options.timewindow.Value   = [];
     sProcess.options.timewindow.Group   = 'input';
+    
     % Options: Sensor types
-
     sProcess.options.sensortypes.Comment = 'Sensor types or names (empty=all): ';
     sProcess.options.sensortypes.Type    = 'text';
     sProcess.options.sensortypes.Value   = 'NIRS';
@@ -100,131 +101,145 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
 
     bst_plugin('Load', 'tfnirs');
 
+    [tempalte_OPTIONS, selected_clusters] = getOptions(sProcess);
+
+    % Start of the main code
+    bst_progress('start', 'Running Time-Frequency Analysis', 'Running Time-Frequency Analysis', 0, length(selected_clusters)*length(sInputs));
+
+    for iCluster = 1:length(selected_clusters) 
+        
+        ref = [];
+
+        for iFile = 1:length(sInputs)
+            OPTIONS = tempalte_OPTIONS;
+
+            % Step 0 - load data
+            [time, data, iOrigTime, selected_channels] = getData(sInputs(iFile), OPTIONS, selected_clusters(iCluster));
+            OPTIONS.mandatory.DataTime          = time; 
+
+            % Step 1 - compute time-frequency representation
+            fprintf('Tf-nirs > Computing the CW decomposition ... ')
+            [power, OPTIONS] = be_CWavelet(data, OPTIONS);
+            power = permute(power(:, iOrigTime, :), [1, 3, 2]); % N_channel x Nfreq x Ntime
+            fprintf(' Done. \n')
+    
+            % Step 2- Normalize the TF maps
+            fprintf('Tf-nirs > Computing the Teager Keaser nornmalization ... ')
+            [power, title_tf] = be_apply_measure(power, OPTIONS);
+            OPTIONS.title_tf =  title_tf ;
+            fprintf(' Done. \n')
+        
+    
+            % Step 3- Normalize the TF maps ( standardize power)
+            fprintf('Tf-nirs > Normalizing the power of each vertex... ')
+            [power, ref] = be_scale_TF(power, ref);
+            fprintf(' Done. \n')
+    
+    
+            OPTIONS.title_tf  = sprintf('%s - %s', matlab.lang.makeValidName(selected_clusters{iCluster}), OPTIONS.title_tf);
+            
+            % Step 6. Save in Brainstorm
+            nfreq = length(OPTIONS.wavelet.freqs_analyzed);
+            nTime = length(time);
+            
+            TFmask  = ones(nfreq, nTime);
+            is_zero = all(squeeze(power(1,:)) == 0);
+            TFmask(:, is_zero) = 0;
+             
+            sDataOut            = db_template('timefreqmat');
+            sDataOut.TF         = permute(power, [1,3,2]); %nSensor x nTime x nFreq
+            sDataOut.RowNames   = selected_channels;
+            sDataOut.TFmask     = TFmask;
+            sDataOut.DataType   = 'data';
+            sDataOut.DataFile   = sInputs(iFile).FileName;
+            sDataOut.Time       = time;
+            sDataOut.Freqs      = OPTIONS.wavelet.freqs_analyzed;
+            sDataOut.Options    = OPTIONS;
+            sDataOut.Comment    = sprintf('CW (%s)', matlab.lang.makeValidName(selected_clusters{iCluster}));
+            sDataOut.Method     = 'morlet';
+            sDataOut.Measure    = 'power';
+            sDataOut.Options.PowerUnits = 'physical';
+            sDataOut.DisplayUnits       = '\mumol.l-1'; 
+    
+            % Generate a new file name in the same folder
+            sStudy      = bst_get('Study', sInputs(iFile).iStudy);
+            OutputFile  = bst_process('GetNewFilename', bst_fileparts(sStudy.FileName), 'timefreq_wavelet');
+            sDataOut.FileName = file_short(OutputFile);
+            bst_save(OutputFile, sDataOut, 'v7');
+            % Register in database
+            db_add_data(sInputs(iFile).iStudy, OutputFile, sDataOut);
+            OutputFiles{end+1} = OutputFile;
+
+            bst_progress('inc', 1);
+        end
+
+    end 
+    bst_progress('stop');
+end 
+
+function [OPTIONS, selected_clusters, TimeWindow] = getOptions(sProcess)
+
+    % Select cluster
+    selected_clusters = sProcess.options.clusters.Value;
+    
+    % Selected time-window
+    if isfield(sProcess.options, 'timewindow') && isfield(sProcess.options.timewindow, 'Value') && iscell(sProcess.options.timewindow.Value) && ~isempty(sProcess.options.timewindow.Value)
+        TimeWindow = sProcess.options.timewindow.Value{1};
+    else
+        TimeWindow = [];
+    end
+    
+    % General options
+    OPTIONS.wavelet.vanish_moments      = sProcess.options.vanish_moments.Value{1} ;    % vanish momemts
+    OPTIONS.wavelet.order               = sProcess.options.order.Value{1} ;             % spectral decay
+    OPTIONS.wavelet.nb_levels           = sProcess.options.nb_levels.Value{1};          % number of voices
+    OPTIONS.wavelet.display.TaegerK     = sProcess.options.normalization.Value; 
+    OPTIONS.wavelet.verbose             = 0;   
+    OPTIONS.wavelet.display.fontscale   = 16;
+    OPTIONS.channelTypes                = sProcess.options.sensortypes.Value;
+    OPTIONS.TimeWindow                  = TimeWindow;
+
+
+end
+
+function [time, data, iOrigTime, selected_channels] = getData(sInput, OPTIONS, selected_cluster)
+
     % Load recordings
-    if strcmp(sInputs.FileType, 'data')     % Imported data structure
-        sData = in_bst_data(sInputs(1).FileName);
-    elseif strcmp(sInputs.FileType, 'raw')  % Continuous data file       
-        sData = in_bst(sInputs(1).FileName, [], 1, 1, 'no');
+    if strcmp(sInput.FileType, 'data')     % Imported data structure
+        sData = in_bst_data(sInput.FileName);
+    elseif strcmp(sInput.FileType, 'raw')  % Continuous data file       
+        sData = in_bst(sInput.FileName, [], 1, 1, 'no');
     end
 
     % Prepare Data and Options 
-    sChannels           = in_bst_channel(sInputs.ChannelFile);
+    sChannels           = in_bst_channel(sInput.ChannelFile);
 
-
-    % Select cluster
-    icluster          = cellfun(@(x)find(strcmp( {sChannels.Clusters.Label},x)),  sProcess.options.clusters.Value);
-    cluster           = sChannels.Clusters(icluster);
+    % Get cluster 
+    icluster            = cellfun(@(x)find(strcmp( {sChannels.Clusters.Label},x)),  selected_cluster);
+    cluster             = sChannels.Clusters(icluster);
 
     % Select channels
-    channelTypes        = sProcess.options.sensortypes.Value;
-    iChannels           = good_channel(sChannels.Channel, sData.ChannelFlag, channelTypes) ;
+    iChannels           = good_channel(sChannels.Channel, sData.ChannelFlag, OPTIONS.channelTypes) ;
     sChannels           = sChannels.Channel(iChannels);
 
-    if isfield(sProcess.options, 'timewindow') && isfield(sProcess.options.timewindow, 'Value') && iscell(sProcess.options.timewindow.Value) && ~isempty(sProcess.options.timewindow.Value)
-        TimeWindow = sProcess.options.timewindow.Value{1};
-    end
+    % Select Time
+    iTime = panel_time('GetTimeIndices', sData.Time, OPTIONS.TimeWindow);
+    time  = sData.Time(iTime);
 
-    if isempty(TimeWindow)
-        time = sData.Time;
-        iTime = 1:length(time);
-    else
-        iTime = panel_time('GetTimeIndices', sData.Time, TimeWindow');
-        time  = sData.Time(iTime);
-    end
-
-    F           = sData.F(iChannels,iTime);
-    if strcmpi(channelTypes,'nirs')
-        F = nst_misc_convert_to_mumol(F,sData.DisplayUnits);
-    else
-        F = bst_getunits(F, channelTypes, [], sData.DisplayUnits);
-    end
-
-
-    [F, iOrigTime] = pad_signal(time, F);
-
-    OPTIONS.wavelet.vanish_moments =  sProcess.options.vanish_moments.Value{1} ; % vanish momemts
-    OPTIONS.wavelet.order          =  sProcess.options.order.Value{1} ;  % spectral decay
-    OPTIONS.wavelet.nb_levels      =  sProcess.options.nb_levels.Value{1};% number of voices
-    OPTIONS.wavelet.verbose        = 1;   % verbose or not
-    OPTIONS.mandatory.DataTime     = time; 
-    OPTIONS.wavelet.display.fontscale = 16;
-
-    if sProcess.options.normalization.Value
-        OPTIONS.wavelet.display.TaegerK = 'yes';
-    else
-        OPTIONS.wavelet.display.TaegerK = 'no';
-    end
-
-
-
-    % Start of the main code
-    OPTIONS         = repmat(OPTIONS, 1,length(cluster) );
-    bst_progress('start', 'Running Time-Frequency Analysis', 'Running Time-Frequency Analysis', 0, length(cluster));
-
-    for iCluster = 1:length(cluster) 
-
-        iChannel = channel_find(sChannels, cluster(iCluster).Sensors);
-        data = F(iChannel, :);
-
-        % Step 1 - compute time-frequency representation
-        fprintf('Tf-nirs > Computing the CW decomposition ... ')
-        [power, OPTIONS(iCluster)] = be_CWavelet(data(:, 1:2^p), OPTIONS(iCluster));
-        power = permute(power(:, iOrigTime, :), [1, 3, 2]); % N_channel x Nfreq x Ntime
-        fprintf(' Done. \n')
-
-        % Step 2- Normalize the TF maps
-        fprintf('Tf-nirs > Computing the Teager Keaser nornmalization ... ')
-        [power, title_tf] = be_apply_measure(power, OPTIONS);
-        OPTIONS(iCluster).title_tf =  title_tf ;
-        fprintf(' Done. \n')
     
-
-        % Step 3- Normalize the TF maps ( standardize power)
-        fprintf('Tf-nirs > Normalizing the power of each vertex... ')
-        power = be_scale_TF(power);
-        fprintf(' Done. \n')
+    % Select Data
+    F                   = sData.F(iChannels, iTime);
 
 
-        OPTIONS(iCluster).title_tf  = sprintf('%s - %s', strrep(cluster(iCluster).Label,'_',' '), OPTIONS(iCluster).title_tf);
-        
-        % Step 6. Save in Brainstorm
-        nfreq = length(OPTIONS(iCluster).wavelet.freqs_analyzed);
-        nTime = length(time);
-        
-        TFmask  = ones(nfreq,nTime);
-        is_zero = all(squeeze(power(1,:)) == 0);
-        TFmask(:, is_zero) = 0;
-         
-        sDataOut            = db_template('timefreqmat');
-        sDataOut.TF         = permute(power, [1,3,2]); %nSensor x nTime x nFreq
-        sDataOut.RowNames   = cluster(iCluster).Sensors;
-        sDataOut.TFmask     = TFmask;
-        sDataOut.DataType   = 'data';
-        sDataOut.DataFile   = sInputs.FileName;
-        sDataOut.Time       = time;
-        sDataOut.Freqs      = OPTIONS(iCluster).wavelet.freqs_analyzed;
-        sDataOut.Options    = OPTIONS(iCluster);
-        sDataOut.Comment    = sprintf('CW [%s]',cluster(iCluster).Label);
-        sDataOut.Method     = 'morlet';
-        sDataOut.Measure    = 'power';
-        sDataOut.Options.PowerUnits = 'physical';
-        sDataOut.DisplayUnits       =' \mumol.l-1'; % TODO: fix display units
+    % Select Cluster of channels
+    iChannel            = channel_find(sChannels, cluster.Sensors);
+    selected_channels   = {sChannels(iChannel).Name};
+    data                = F(iChannel, :);
 
-        % Generate a new file name in the same folder
-        sStudy = bst_get('Study', sInputs.iStudy);
-        OutputFile = bst_process('GetNewFilename', bst_fileparts(sStudy.FileName), 'timefreq_wavelet');
-        sDataOut.FileName = file_short(OutputFile);
-        bst_save(OutputFile, sDataOut, 'v7');
-        % Register in database
-        db_add_data(sInputs.iStudy, OutputFile, sDataOut);
-        OutputFiles{end+1} = OutputFile;
-        
-        bst_progress('inc', 1);
-    end 
+    % Pad Signal
+    [data, iOrigTime] = pad_signal(time, data);
+end
 
-    bst_progress('stop');
-    
-end 
 
 function [power, time] = removeZero(power, time )
 % Remove the zeros comming from the edge effect 
@@ -247,7 +262,7 @@ function idx  =  getIndexEvent(Time, Event )
 end
 
 
-function Event  =  extendEvent(Event, before, after  )
+function Event  =  extendEvent(Event, before, after)
 
     if size(Event.times,1) == 1
         Event.times = repmat(Event.times,2,1);
@@ -667,4 +682,7 @@ function [F, iOrigTime] = pad_signal(time, F)
     F = padarray(F,[0 round((2^p - size(F,2))/2)],0,'both');
     ext_time    = padarray(time,[0 round((2^p - size(time,2))/2)],NaN,'both');
     iOrigTime   = ~isnan(ext_time);
+
+    F = F(:, 1:2^p);
 end
+
