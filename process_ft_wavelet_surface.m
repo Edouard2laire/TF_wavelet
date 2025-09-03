@@ -175,19 +175,12 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
             power = permute(power(:, iOrigTime, :), [1, 3, 2]); % N_channel x Nfreq x Ntime
             fprintf(' Done. \n')
 
-
-            % Step 2- Normalize the TF maps
+             % Step 2- Normalize the TF maps
             fprintf('Tf-nirs > Computing the Teager Keaser nornmalization ... ')
             [power, title_tf] = be_apply_measure(power, OPTIONS);
             OPTIONS(iCluster).title_tf =  title_tf ;
             fprintf(' Done. \n')
     
-
-            % Step 3- Normalize the TF maps ( standardize power)
-            fprintf('Tf-nirs > Normalizing the power of each vertex... ')
-            power = be_scale_TF(power);
-            fprintf(' Done. \n')
-
             % Step 3 - Average accross vertex
             if length(vertex) > 1
                 wData = wData + ( sum(power, 1) ./ length(vertex) );
@@ -196,7 +189,12 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
             end
             bst_progress('inc', 1);
         end
-    
+
+            
+        % Step 4- Normalize the TF maps ( standardize power)
+        fprintf('Tf-nirs > Normalizing the power of each vertex... ')
+        wData = be_scale_TF(wData);
+        fprintf(' Done. \n')
 
         OPTIONS(iCluster).title_tf  = sprintf('%s - %s', strrep(sROI.Label,'_',' '), OPTIONS(iCluster).title_tf);
 
