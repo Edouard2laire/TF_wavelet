@@ -58,7 +58,7 @@ function sProcess = GetDescription() %#ok<DEFNU>
 
     % === CLUSTERS
     sProcess.options.clusters.Comment = '';
-    sProcess.options.clusters.Type    = 'cluster';
+    sProcess.options.clusters.Type    = 'cluster_confirm';
     sProcess.options.clusters.Value   = [];
 
 
@@ -410,7 +410,7 @@ function segments = exctractSegment(WData,time, stages, events, freqs)
     good_segments = true(1, nSegment );
     for iSegment = 1:nSegment
         beging = changepoints(iSegment);
-        finish = changepoints(iSegment + 1) - 1;
+        finish = min(changepoints(iSegment + 1) - 1, size(WData, 2));
     
         iStage = unique(hypnoram(beging:finish));
 
@@ -647,9 +647,9 @@ function f = displayPowerSpectrum(spectrum_mean,spectrum_err, labels, freqs_anal
             'LineWidth', 2, ...
             'xscale', 'log' , ...
             'xlim', [ min(freqs_analyzed), max(freqs_analyzed)], ...
-            'XTick',Ytic(:),...
-            'XTickLabel',Yticl,...
-            'FontName','Times',...
+            'XTick',      Ytic(:),...
+            'XTickLabel', Yticl,...
+            'FontName', 'Times',...
             'FontSize',  OPTIONS.wavelet.display.fontscale);
 
     if strcmp(OPTIONS.wavelet.display.TaegerK ,'no')
