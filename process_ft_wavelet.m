@@ -30,7 +30,7 @@ end
 function sProcess = GetDescription() %#ok<DEFNU>
     % Description the process
     sProcess.Comment     = 'Time-frequency: Morse Wavelet';
-    sProcess.Category    = 'File';
+    sProcess.Category    = 'Custom';
     sProcess.SubGroup    = {'NIRS','Frequency'};
     sProcess.Index       = 1705;
     sProcess.Description = 'http://www.fieldtriptoolbox.org/tutorial/timefrequencyanalysis';
@@ -112,7 +112,7 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
     for iCluster = 1:length(selected_clusters) 
 
         [~, data, ~, ~] = getData(sInputs(1), tempalte_OPTIONS, selected_clusters(iCluster));
-        ref = nan(1, size(data, 1));
+        ref = nan(size(data, 1), 1);
 
         for iFile = 1:length(sInputs)
             OPTIONS = tempalte_OPTIONS;
@@ -121,32 +121,34 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
             [time, data, iOrigTime, selected_channels] = getData(sInputs(iFile), OPTIONS, selected_clusters(iCluster));
             OPTIONS.mandatory.DataTime          = time; 
             
-            blockSize   = max(floor(MaxSizeDouble / prod([size(data, 2), 1+OPTIONS.wavelet.nb_levels])), 1);
-            nSamples    = size(data, 1);
+            sizePerSample    = prod([size(data, 2), 1+OPTIONS.wavelet.nb_levels]);
+            nSamples = size(data, 1);
+            
+            blockSize   = min(max(floor(MaxSizeDouble / sizePerSample), 1), nSamples);
             nBlocks     = ceil(nSamples / blockSize);
-
+            
             meanvar_estimator  = nst_math_WelfordVariance( size(data, 1),  [1+OPTIONS.wavelet.nb_levels, sum(iOrigTime)]);
-            fprintf('Tf-nirs > Analyzing %d blokcs of %d signals... ', nBlocks, nSamples)
+            fprintf('Tf-nirs > Analyzing %d blokcs of %d signals... \n', nBlocks,  blockSize)
 
             for iBlock = 1 : nBlocks
 
                 iChannel = [((iBlock-1) * blockSize + 1) : min(iBlock * blockSize, nSamples)];
 
                 % Step 1 - compute time-frequency representation
-                fprintf('Tf-nirs > Computing the CW decomposition ... ')
+                fprintf('Tf-nirs [%d/%d] > Computing the CW decomposition ... ', iBlock, nBlocks)
                 [power, OPTIONS] = be_CWavelet(data(iChannel, :), OPTIONS);
                 power = permute(power(:, iOrigTime, :), [1, 3, 2]); % N_channel x Nfreq x Ntime
                 fprintf(' Done. \n')
         
                 % Step 2- Normalize the TF maps
-                fprintf('Tf-nirs > Computing the Teager Keaser nornmalization ... ')
+                fprintf('Tf-nirs [%d/%d]> Computing the Teager Keaser nornmalization ... ', iBlock, nBlocks)
                 [power, title_tf] = be_apply_measure(power, OPTIONS);
                 OPTIONS.title_tf =  title_tf ;
                 fprintf(' Done. \n')
             
         
                 % Step 3- Normalize the TF maps ( standardize power)
-                fprintf('Tf-nirs > Normalizing the power of each vertex... ')
+                fprintf('Tf-nirs [%d/%d]> Normalizing the power of each vertex... ', iBlock, nBlocks)
                 [power, ref(iChannel)] = be_scale_TF(power, ref(iChannel));
                 fprintf(' Done. \n')
 
