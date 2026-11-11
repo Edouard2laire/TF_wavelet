@@ -103,12 +103,16 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
 
     [tempalte_OPTIONS, selected_clusters] = getOptions(sProcess);
 
+    ProcessOptions = bst_get('ProcessOptions');
+    MaxSizeDouble = ProcessOptions.MaxBlockSize;
+
     % Start of the main code
     bst_progress('start', 'Running Time-Frequency Analysis', 'Running Time-Frequency Analysis', 0, length(selected_clusters)*length(sInputs));
 
     for iCluster = 1:length(selected_clusters) 
-        
-        ref = [];
+
+        [~, data, ~, ~] = getData(sInputs(1), tempalte_OPTIONS, selected_clusters(iCluster));
+        ref = nan(1, size(data, 1));
 
         for iFile = 1:length(sInputs)
             OPTIONS = tempalte_OPTIONS;
@@ -116,26 +120,41 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
             % Step 0 - load data
             [time, data, iOrigTime, selected_channels] = getData(sInputs(iFile), OPTIONS, selected_clusters(iCluster));
             OPTIONS.mandatory.DataTime          = time; 
+            
+            blockSize   = max(floor(MaxSizeDouble / prod([size(data, 2), 1+OPTIONS.wavelet.nb_levels])), 1);
+            nSamples    = size(data, 1);
+            nBlocks     = ceil(nSamples / blockSize);
 
-            % Step 1 - compute time-frequency representation
-            fprintf('Tf-nirs > Computing the CW decomposition ... ')
-            [power, OPTIONS] = be_CWavelet(data, OPTIONS);
-            power = permute(power(:, iOrigTime, :), [1, 3, 2]); % N_channel x Nfreq x Ntime
-            fprintf(' Done. \n')
-    
-            % Step 2- Normalize the TF maps
-            fprintf('Tf-nirs > Computing the Teager Keaser nornmalization ... ')
-            [power, title_tf] = be_apply_measure(power, OPTIONS);
-            OPTIONS.title_tf =  title_tf ;
-            fprintf(' Done. \n')
+            meanvar_estimator  = nst_math_WelfordVariance( size(data, 1),  [1+OPTIONS.wavelet.nb_levels, sum(iOrigTime)]);
+            fprintf('Tf-nirs > Analyzing %d blokcs of %d signals... ', nBlocks, nSamples)
+
+            for iBlock = 1 : nBlocks
+
+                iChannel = [((iBlock-1) * blockSize + 1) : min(iBlock * blockSize, nSamples)];
+
+                % Step 1 - compute time-frequency representation
+                fprintf('Tf-nirs > Computing the CW decomposition ... ')
+                [power, OPTIONS] = be_CWavelet(data(iChannel, :), OPTIONS);
+                power = permute(power(:, iOrigTime, :), [1, 3, 2]); % N_channel x Nfreq x Ntime
+                fprintf(' Done. \n')
         
+                % Step 2- Normalize the TF maps
+                fprintf('Tf-nirs > Computing the Teager Keaser nornmalization ... ')
+                [power, title_tf] = be_apply_measure(power, OPTIONS);
+                OPTIONS.title_tf =  title_tf ;
+                fprintf(' Done. \n')
+            
+        
+                % Step 3- Normalize the TF maps ( standardize power)
+                fprintf('Tf-nirs > Normalizing the power of each vertex... ')
+                [power, ref(iChannel)] = be_scale_TF(power, ref(iChannel));
+                fprintf(' Done. \n')
+
+                meanvar_estimator.update(squeeze(mean(power, 1)));
     
-            % Step 3- Normalize the TF maps ( standardize power)
-            fprintf('Tf-nirs > Normalizing the power of each vertex... ')
-            [power, ref] = be_scale_TF(power, ref);
-            fprintf(' Done. \n')
-    
-    
+            end
+
+            power = meanvar_estimator.Mean;
             OPTIONS.title_tf  = sprintf('%s - %s', matlab.lang.makeValidName(selected_clusters{iCluster}), OPTIONS.title_tf);
             
             % Step 6. Save in Brainstorm
@@ -147,8 +166,8 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
             TFmask(:, is_zero) = 0;
              
             sDataOut            = db_template('timefreqmat');
-            sDataOut.TF         = permute(power, [1,3,2]); %nSensor x nTime x nFreq
-            sDataOut.RowNames   = selected_channels;
+            sDataOut.TF(1, :, :)         = power'; %nSensor x nTime x nFreq
+            sDataOut.RowNames   = selected_clusters(iCluster);
             sDataOut.TFmask     = TFmask;
             sDataOut.DataType   = 'data';
             sDataOut.DataFile   = sInputs(iFile).FileName;

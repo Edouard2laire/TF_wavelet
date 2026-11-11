@@ -105,7 +105,7 @@ function [WData, OPTIONS] = be_CWavelet(data, OPTIONS, varargin)
 
     end
 
-    WData = squeeze(Cwave);
+    WData = Cwave;
 end
 
 % ========================================================================
