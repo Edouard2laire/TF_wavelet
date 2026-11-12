@@ -127,7 +127,7 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
             blockSize   = min(max(floor(MaxSizeDouble / sizePerSample), 1), nSamples);
             nBlocks     = ceil(nSamples / blockSize);
             
-            meanvar_estimator  = nst_math_WelfordVariance( size(data, 1),  [1+OPTIONS.wavelet.nb_levels, sum(iOrigTime)]);
+            meanvar_estimator  = be_WelfordVariance( size(data, 1),  [1+OPTIONS.wavelet.nb_levels, sum(iOrigTime)]);
             fprintf('Tf-nirs > Analyzing %d blokcs of %d signals... \n', nBlocks,  blockSize)
 
             for iBlock = 1 : nBlocks
@@ -152,11 +152,10 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
                 [power, ref(iChannel)] = be_scale_TF(power, ref(iChannel));
                 fprintf(' Done. \n')
 
-                meanvar_estimator.update(squeeze(mean(power, 1)));
+                meanvar_estimator.update(power);
     
             end
 
-            power = meanvar_estimator.Mean;
             OPTIONS.title_tf  = sprintf('%s - %s', matlab.lang.makeValidName(selected_clusters{iCluster}), OPTIONS.title_tf);
             
             % Step 6. Save in Brainstorm
@@ -168,8 +167,11 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
             TFmask(:, is_zero) = 0;
              
             sDataOut            = db_template('timefreqmat');
-            sDataOut.TF(1, :, :)         = power'; %nSensor x nTime x nFreq
+            sDataOut.TF(1, :, :)= meanvar_estimator.Mean'; % 1 x nTime x nFreq
+            sDataOut.Std(1, :, :)= meanvar_estimator.StdDev()'; % 1 x nTime x nFreq
             sDataOut.RowNames   = selected_clusters(iCluster);
+            sDataOut.nAvg       = meanvar_estimator.N;
+            sDataOut.Leff       = meanvar_estimator.N;
             sDataOut.TFmask     = TFmask;
             sDataOut.DataType   = 'data';
             sDataOut.DataFile   = sInputs(iFile).FileName;
