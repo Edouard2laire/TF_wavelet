@@ -205,7 +205,11 @@ end
 function [OPTIONS, selected_clusters, TimeWindow] = getOptions(sProcess)
 
     % Select cluster
-    selected_clusters = sProcess.options.clusters.Value;
+    if isfield(sProcess.options, 'clusters')
+        selected_clusters = sProcess.options.clusters.Value;
+    else
+        selected_clusters = sProcess.options.scouts.Value;
+    end
     
     % Selected time-window
     if isfield(sProcess.options, 'timewindow') && isfield(sProcess.options.timewindow, 'Value') && iscell(sProcess.options.timewindow.Value) && ~isempty(sProcess.options.timewindow.Value)
@@ -215,7 +219,7 @@ function [OPTIONS, selected_clusters, TimeWindow] = getOptions(sProcess)
     end
     
     % General options
-    OPTIONS.wavelet.vanish_moments      = sProcess.options.vanish_moments.Value{1} ;    % vanish momemts
+    OPTIONS.wavelet.vanish_moments      = sProcess.options.vanish_moments.Value{1} ;    % vanish moments
     OPTIONS.wavelet.order               = sProcess.options.order.Value{1} ;             % spectral decay
     OPTIONS.wavelet.nb_levels           = sProcess.options.nb_levels.Value{1};          % number of voices
     OPTIONS.wavelet.verbose             = 0;   
@@ -277,7 +281,7 @@ end
 
 
 function [power, time] = removeZero(power, time )
-% Remove the zeros comming from the edge effect 
+% Remove the zeros coming from the edge effect 
 
     is_zero = all(power == 0);
     power = power(:, ~is_zero);
