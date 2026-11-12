@@ -31,7 +31,7 @@ end
 function sProcess = GetDescription() %#ok<DEFNU>
     % Description the process
     sProcess.Comment     = 'Time-frequency: Morse Wavelet(source)';
-    sProcess.Category    = 'File';
+    sProcess.Category    = 'Custom';
     sProcess.SubGroup    = {'NIRS','Frequency'};
     sProcess.Index       = 1705;
     sProcess.Description = 'http://www.fieldtriptoolbox.org/tutorial/timefrequencyanalysis';
@@ -159,9 +159,10 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
         vertex  = sROI.Vertices;
 
         block_size = 5;
-        nBlock  = ceil(length(vertex)/block_size);         
-        wData = 0;
-        bst_progress('start', 'Running Time-Frequency Analysis', 'Running Time-Frequency Analysis', 0, nBlock);
+        nBlock  = ceil(length(vertex)/block_size);
+
+        bst_progress('start', 'Running Time-Frequency Analysis', 'Running Time-Frequency Analysis', 0, nBlock);        
+        meanvar_estimator  = be_WelfordVariance( size(data, 1),  [1+OPTIONS.wavelet.nb_levels, sum(iOrigTime)]);
 
         for k=0:(nBlock-1)
             idx = (1+ k*block_size):(block_size*(k+1));
@@ -182,15 +183,13 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
             fprintf(' Done. \n')
     
             % Step 3 - Average accross vertex
-            if length(vertex) > 1
-                wData = wData + ( sum(power, 1) ./ length(vertex) );
-            else
-                wData = wData + ( power ./ length(vertex));
-            end
+            meanvar_estimator.update(power);
             bst_progress('inc', 1);
         end
+        
+        % Recover the mean over the ROI. 
+        wData = meanvar_estimator.Mean;
 
-            
         % Step 4- Normalize the TF maps ( standardize power)
         fprintf('Tf-nirs > Normalizing the power of each vertex... ')
         wData = be_scale_TF(wData);
