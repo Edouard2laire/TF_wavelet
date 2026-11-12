@@ -30,11 +30,6 @@ classdef be_WelfordVariance < handle
 
         % Update the estimator with exactly ONE new 2D matrix sample
         function updateSingle(obj, X)
-            % Ensure input is a valid 2D sample
-            if isempty(X) || ~ismatrix(X)
-                error('Input must be a single non-empty 2D matrix.');
-            end
-            
             obj.Count = obj.Count + 1;
             
             % Element-wise Welford's algorithm (fully vectorized across the 2D grid)
@@ -49,7 +44,7 @@ classdef be_WelfordVariance < handle
         % Update the estimator with exactly ONE new 2D matrix sample
         function update(obj, X)
             % Ensure input is a valid 2D sample
-            if isempty(X) || ~ismatrix(X)
+            if isempty(X)
                 error('Input must be a single non-empty N-D matrix.');
             end
             
