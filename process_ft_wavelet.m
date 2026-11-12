@@ -27,7 +27,7 @@ end
 
 
 %% ===== GET DESCRIPTION =====
-function sProcess = GetDescription() %#ok<DEFNU>
+function sProcess = GetDescription() 
     % Description the process
     sProcess.Comment     = 'Time-frequency: Morse Wavelet';
     sProcess.Category    = 'Custom';
@@ -90,13 +90,13 @@ end
 
 
 %% ===== FORMAT COMMENT =====
-function Comment = FormatComment(sProcess) %#ok<DEFNU>
+function Comment = FormatComment(sProcess) 
     Comment = sProcess.Comment;
 end
 
 
 %% ===== RUN =====
-function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
+function OutputFiles = Run(sProcess, sInputs) 
     OutputFiles = {};
 
     bst_plugin('Load', 'tfnirs');
@@ -120,8 +120,8 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
             OPTIONS = tempalte_OPTIONS;
 
             % Step 0 - load data
-            [time, data, iOrigTime, selected_channels] = getData(sInputs(iFile), OPTIONS, sClusters(iCluster));
-            OPTIONS.mandatory.DataTime          = time; 
+            [time, data, iOrigTime]     = getData(sInputs(iFile), OPTIONS, sClusters(iCluster));
+            OPTIONS.mandatory.DataTime  = time; 
             
             sizePerSample    = prod([size(data, 2), 1+OPTIONS.wavelet.nb_levels]);
             nSamples = size(data, 1);
@@ -133,7 +133,6 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
             fprintf('Tf-nirs > Analyzing %d blokcs of %d signals... \n', nBlocks,  blockSize)
 
             for iBlock = 1 : nBlocks
-
                 iChannel = [((iBlock-1) * blockSize + 1) : min(iBlock * blockSize, nSamples)];
 
                 % Step 1 - compute time-frequency representation
@@ -155,7 +154,6 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
                 fprintf(' Done. \n')
 
                 meanvar_estimator.update(power);
-    
             end
 
             OPTIONS.title_tf  = sprintf('%s - %s', matlab.lang.makeValidName(selected_clusters{iCluster}), OPTIONS.title_tf);
@@ -184,6 +182,7 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
             sDataOut.Comment    = sprintf('CW (%s)', matlab.lang.makeValidName(selected_clusters{iCluster}));
             sDataOut.Method     = 'morlet';
             sDataOut.Measure    = 'power';
+            sDataOut = bst_history('add',  sDataOut, 'Compute', 'Compute CW Time-Frequency');
             sDataOut.Options.PowerUnits = 'physical';
             sDataOut.DisplayUnits       = '\mumol.l-1'; 
     
@@ -230,11 +229,9 @@ function [OPTIONS, selected_clusters, TimeWindow] = getOptions(sProcess)
     else
         OPTIONS.wavelet.display.TaegerK = 'no';
     end
-
 end
 
 function sClusters = getClusters(ChannelFile, selected_clusters)
-
     % Prepare Data and Options 
     sChannels           = in_bst_channel(ChannelFile);
 
