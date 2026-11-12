@@ -102,23 +102,25 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
     bst_plugin('Load', 'tfnirs');
 
     [tempalte_OPTIONS, selected_clusters] = getOptions(sProcess);
+    
+    sClusters = getClusters(sInputs(1).ChannelFile, selected_clusters);
 
     ProcessOptions = bst_get('ProcessOptions');
     MaxSizeDouble = ProcessOptions.MaxBlockSize;
 
     % Start of the main code
-    bst_progress('start', 'Running Time-Frequency Analysis', 'Running Time-Frequency Analysis', 0, length(selected_clusters)*length(sInputs));
+    bst_progress('start', 'Running Time-Frequency Analysis', 'Running Time-Frequency Analysis', 0, length(sClusters)*length(sInputs));
 
-    for iCluster = 1:length(selected_clusters) 
+    for iCluster = 1:length(sClusters) 
 
-        [~, data, ~, ~] = getData(sInputs(1), tempalte_OPTIONS, selected_clusters(iCluster));
+        [~, data, ~, ~] = getData(sInputs(1), tempalte_OPTIONS, sClusters(iCluster));
         ref = nan(size(data, 1), 1);
 
         for iFile = 1:length(sInputs)
             OPTIONS = tempalte_OPTIONS;
 
             % Step 0 - load data
-            [time, data, iOrigTime, selected_channels] = getData(sInputs(iFile), OPTIONS, selected_clusters(iCluster));
+            [time, data, iOrigTime, selected_channels] = getData(sInputs(iFile), OPTIONS, sClusters(iCluster));
             OPTIONS.mandatory.DataTime          = time; 
             
             sizePerSample    = prod([size(data, 2), 1+OPTIONS.wavelet.nb_levels]);
@@ -170,8 +172,9 @@ function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
             sDataOut.TF(1, :, :)= meanvar_estimator.Mean'; % 1 x nTime x nFreq
             sDataOut.Std(1, :, :)= meanvar_estimator.StdDev()'; % 1 x nTime x nFreq
             sDataOut.RowNames   = selected_clusters(iCluster);
-            sDataOut.nAvg       = meanvar_estimator.N;
-            sDataOut.Leff       = meanvar_estimator.N;
+            sDataOut.ref       = ref;
+            sDataOut.nAvg       = meanvar_estimator.Count;
+            sDataOut.Leff       = meanvar_estimator.Count;
             sDataOut.TFmask     = TFmask;
             sDataOut.DataType   = 'data';
             sDataOut.DataFile   = sInputs(iFile).FileName;
@@ -230,7 +233,18 @@ function [OPTIONS, selected_clusters, TimeWindow] = getOptions(sProcess)
 
 end
 
-function [time, data, iOrigTime, selected_channels] = getData(sInput, OPTIONS, selected_cluster)
+function sClusters = getClusters(ChannelFile, selected_clusters)
+
+    % Prepare Data and Options 
+    sChannels           = in_bst_channel(ChannelFile);
+
+    % Get cluster 
+    icluster            = cellfun(@(x)find(strcmp( {sChannels.Clusters.Label},x)),  selected_clusters);
+    sClusters             = sChannels.Clusters(icluster);
+end
+
+
+function [time, data, iOrigTime, selected_channels] = getData(sInput, OPTIONS, cluster)
 
     % Load recordings
     if strcmp(sInput.FileType, 'data')     % Imported data structure
@@ -241,10 +255,6 @@ function [time, data, iOrigTime, selected_channels] = getData(sInput, OPTIONS, s
 
     % Prepare Data and Options 
     sChannels           = in_bst_channel(sInput.ChannelFile);
-
-    % Get cluster 
-    icluster            = cellfun(@(x)find(strcmp( {sChannels.Clusters.Label},x)),  selected_cluster);
-    cluster             = sChannels.Clusters(icluster);
 
     % Select channels
     iChannels           = good_channel(sChannels.Channel, sData.ChannelFlag, OPTIONS.channelTypes) ;
