@@ -28,10 +28,10 @@ end
 
 
 %% ===== GET DESCRIPTION =====
-function sProcess = GetDescription() %#ok<DEFNU>
+function sProcess = GetDescription()
     % Description the process
     sProcess.Comment     = 'Time-frequency: Morse Wavelet(source)';
-    sProcess.Category    = 'File';
+    sProcess.Category    = 'Custom';
     sProcess.SubGroup    = {'NIRS','Frequency'};
     sProcess.Index       = 1705;
     sProcess.Description = 'http://www.fieldtriptoolbox.org/tutorial/timefrequencyanalysis';
@@ -45,16 +45,13 @@ function sProcess = GetDescription() %#ok<DEFNU>
     sProcess.OutputTypes = { 'timefreq'};
     sProcess.nInputs     = 1;
     sProcess.nMinFiles   = 1;
+
     % Options: Time window
     sProcess.options.timewindow.Comment = 'Time window:';
     sProcess.options.timewindow.Type    = 'timewindow';
     sProcess.options.timewindow.Value   = [];
     sProcess.options.timewindow.Group   = 'input';
-    % Options: Sensor types
-
-    sProcess.options.sensortypes.Comment = 'Sensor types or names (empty=all): ';
-    sProcess.options.sensortypes.Type    = 'text';
-    sProcess.options.sensortypes.Value   = 'NIRS';
+    
 
     % === CLUSTERS
     sProcess.options.scouts.Comment = '';
@@ -91,151 +88,145 @@ end
 
 
 %% ===== FORMAT COMMENT =====
-function Comment = FormatComment(sProcess) %#ok<DEFNU>
+function Comment = FormatComment(sProcess)
     Comment = sProcess.Comment;
 end
 
 
 %% ===== RUN =====
-function OutputFiles = Run(sProcess, sInputs) %#ok<DEFNU>
+function OutputFiles = Run(sProcess, sInputs)
     OutputFiles = {};
     
     bst_plugin('Load', 'tfnirs');
 
-    sData            = load(file_fullpath(sInputs.FileName));
+    % Load ROIs
+    sSubject    = bst_get('Subject',sInputs(1).SubjectName );
+    sCortex     = in_tess_bst(sSubject.Surface(sSubject.iCortex).FileName);
 
-    if isfield(sProcess.options, 'timewindow') && isfield(sProcess.options.timewindow, 'Value') && iscell(sProcess.options.timewindow.Value) && ~isempty(sProcess.options.timewindow.Value)
-        TimeWindow = sProcess.options.timewindow.Value{1};
+    % Load Rois
+    [tempalte_OPTIONS, selected_scouts] = process_ft_wavelet('getOptions', sProcess);
+    selected_scouts = getScouts(sCortex, selected_scouts{1}, selected_scouts{2});
+    
+    % Get Memory information
+    ProcessOptions = bst_get('ProcessOptions');
+    MaxSizeDouble = ProcessOptions.MaxBlockSize;
+
+    for iCluster = 1:length(selected_scouts) 
+
+        sROI    = selected_scouts(iCluster);
+        vertex  = sROI.Vertices;
+        
+        ref = [];
+
+        for iFile = 1:length(sInputs)
+
+            OPTIONS = tempalte_OPTIONS;
+            sData   = in_bst_results(sInputs(iFile).FileName, 0);
+ 
+            sizePerSample    = prod([length(sData.Time), 1+OPTIONS.wavelet.nb_levels]);
+            nSamples = length(vertex);
+
+            blockSize   = min(max(floor(MaxSizeDouble / sizePerSample), 1), nSamples);
+            nBlocks     = ceil(nSamples / blockSize);
+
+            bst_progress('start', 'Running Time-Frequency Analysis', 'Running Time-Frequency Analysis', 0, nBlocks);
+
+            [~, iOrigTime, ~]  = getData(sData , OPTIONS, vertex(1));
+            meanvar_estimator  = be_WelfordVariance(nSamples,  [1+OPTIONS.wavelet.nb_levels, sum(iOrigTime)]);
+    
+            for iBlock = 1 : nBlocks
+
+                idx = [((iBlock-1) * blockSize + 1) : min(iBlock * blockSize, nSamples)];
+                [data_cortex, iOrigTime, OPTIONS]  = getData(sData , OPTIONS, vertex(idx));
+    
+                % Step 1 - compute time-frequency representation
+                fprintf('Tf-nirs [%d/%d] > Computing the CW decomposition ... ', iBlock, nBlocks)
+                [power, OPTIONS] = be_CWavelet(data_cortex, OPTIONS);
+                power = permute(power(:, iOrigTime, :), [1, 3, 2]); % nVertex x Nfreq x Ntime
+                fprintf(' Done. \n')
+    
+                 % Step 2- Normalize the TF maps
+                fprintf('Tf-nirs [%d/%d]> Computing the Teager Keaser nornmalization ... ', iBlock, nBlocks)
+                [power, title_tf] = be_apply_measure(power, OPTIONS);
+                fprintf(' Done. \n')
+        
+                % Step 3 - Average accross vertex
+                meanvar_estimator.update(power);
+                bst_progress('inc', 1);
+            end
+            wData = reshape(meanvar_estimator.Mean, [1, 1+OPTIONS.wavelet.nb_levels, sum(iOrigTime)]);
+            OPTIONS.title_tf =  title_tf ;
+
+            % Step 4- Normalize the TF maps ( standardize power)
+            fprintf('Tf-nirs > Normalizing the power of each vertex... ')
+            [wData, ref] = be_scale_TF(wData, ref);
+            wData = squeeze(wData);
+            fprintf(' Done. \n')
+    
+            OPTIONS.title_tf  = sprintf('%s - %s', strrep(sROI.Label,'_',' '), OPTIONS.title_tf);
+    
+            nfreq = length(OPTIONS.wavelet.freqs_analyzed);
+            nTime = length(sData.Time);
+            
+            TFmask  = ones(nfreq, nTime);
+            is_zero = all(squeeze(power(1,:, :)) == 0);
+            TFmask(:, is_zero) = 0;
+    
+            sDataOut            = db_template('timefreqmat');
+            sDataOut.TF(1, :, :) = wData';
+            sDataOut.RowNames   =  {sROI.Label};
+            sDataOut.TFmask     = TFmask;
+            sDataOut.DataType   = 'scout';
+            sDataOut.DataFile   = sInputs(iFile).FileName;
+            sDataOut.Time       = sData.Time;
+            sDataOut.Options    = OPTIONS;
+            sDataOut.Freqs      = OPTIONS.wavelet.freqs_analyzed;
+            sDataOut.Comment    = sprintf('CW [%s]', sROI.Label);
+            sDataOut.Method     = 'morlet';
+            sDataOut.Measure    = 'power';
+            sDataOut.Options.PowerUnits = 'physical';
+            sDataOut.DisplayUnits       =' \mumol.l-1'; 
+    
+            % Generate a new file name in the same folder
+            sStudy = bst_get('Study', sInputs(iFile).iStudy);
+            OutputFile = bst_process('GetNewFilename', bst_fileparts(sStudy.FileName), 'timefreq_wavelet');
+            sDataOut.FileName = file_short(OutputFile);
+            bst_save(OutputFile, sDataOut, 'v7');
+            % Register in database
+            db_add_data(sInputs(iFile).iStudy, OutputFile, sDataOut);
+            OutputFiles{end+1} = OutputFile;
+        end
     end
 
-    if isempty(TimeWindow)
+    bst_progress('stop');
+end 
+
+function selected_scouts = getScouts(sCortex, selected_atlas, selected_scouts)
+
+    iAtlas      = find(strcmp( {sCortex.Atlas.Name}, selected_atlas));
+    iRois       = cellfun(@(x)find(strcmp( {sCortex.Atlas(iAtlas).Scouts.Label},x)), selected_scouts);
+    
+    selected_scouts = sCortex.Atlas(iAtlas).Scouts(iRois);
+end
+
+function [data, iOrigTime, OPTIONS]  = getData(sData , OPTIONS, vertex)
+
+    F = sData.ImageGridAmp;
+
+    if isempty(OPTIONS.TimeWindow)
         time = sData.Time;
         iTime = 1:length(time);
     else
         iTime = panel_time('GetTimeIndices', sData.Time, TimeWindow');
         time  = sData.Time(iTime);
     end
+    OPTIONS.mandatory.DataTime     = time; 
 
     % Find the appropriate padding for this dataset
     p           = nextpow2(length(time)); 
     padding     = [0 round((2^p - size(time,2))/2)];
     ext_time    = padarray(time, padding, NaN,'both');
     iOrigTime   = ~isnan(ext_time);
-
-    % Load data:
-    F           = sData.ImageGridAmp;
-
-    % Load ROIs
-    sSubject    = bst_get('Subject',sInputs.SubjectName );
-    sCortex     = in_tess_bst(sSubject.Surface(sSubject.iCortex).FileName);
-    ROI         = sProcess.options.scouts.Value;
-    iAtlas      = find(strcmp( {sCortex.Atlas.Name},ROI{1}));
-    iRois       = cellfun(@(x)find(strcmp( {sCortex.Atlas(iAtlas).Scouts.Label},x)),   ROI{2});
-
-    ROI_select = {sCortex.Atlas(iAtlas).Scouts(iRois).Label};
-    if isempty(iRois)
-        disp('ROI doesnt exist.');
-        return;
-    end
-
-    OPTIONS.wavelet.vanish_moments =  sProcess.options.vanish_moments.Value{1} ; % vanish momemts
-    OPTIONS.wavelet.order          =  sProcess.options.order.Value{1} ;  % spectral decay
-    OPTIONS.wavelet.nb_levels      =  sProcess.options.nb_levels.Value{1};% number of voices
-    OPTIONS.wavelet.verbose        = 0;   % verbose or not
-    OPTIONS.mandatory.DataTime     = time; 
-
-    if sProcess.options.normalization.Value
-        OPTIONS.wavelet.display.TaegerK = 'yes';
-    else
-        OPTIONS.wavelet.display.TaegerK = 'no';
-    end
-
-   
-    OPTIONS     = repmat(OPTIONS, 1,length(ROI_select) );
-
-    for iCluster = 1:length(ROI_select) 
-
-        sROI    = sCortex.Atlas(iAtlas).Scouts(iRois(iCluster));
-        vertex  = sROI.Vertices;
-
-        block_size = 5;
-        nBlock  = ceil(length(vertex)/block_size);         
-        wData = 0;
-        bst_progress('start', 'Running Time-Frequency Analysis', 'Running Time-Frequency Analysis', 0, nBlock);
-
-        for k=0:(nBlock-1)
-            idx = (1+ k*block_size):(block_size*(k+1));
-            idx = idx( idx <= length(vertex));
-
-            data_cortex = getData(F , vertex(idx), iTime, padding);
-
-            % Step 1 - compute time-frequency representation
-            fprintf('Tf-nirs > Computing the CW decomposition ... ')
-            [power, OPTIONS(iCluster)] = be_CWavelet(data_cortex(:, 1:2^p), OPTIONS(iCluster));
-            power = permute(power(:, iOrigTime, :), [1, 3, 2]); % N_channel x Nfreq x Ntime
-            fprintf(' Done. \n')
-
-             % Step 2- Normalize the TF maps
-            fprintf('Tf-nirs > Computing the Teager Keaser nornmalization ... ')
-            [power, title_tf] = be_apply_measure(power, OPTIONS);
-            OPTIONS(iCluster).title_tf =  title_tf ;
-            fprintf(' Done. \n')
-    
-            % Step 3 - Average accross vertex
-            if length(vertex) > 1
-                wData = wData + ( sum(power, 1) ./ length(vertex) );
-            else
-                wData = wData + ( power ./ length(vertex));
-            end
-            bst_progress('inc', 1);
-        end
-
-            
-        % Step 4- Normalize the TF maps ( standardize power)
-        fprintf('Tf-nirs > Normalizing the power of each vertex... ')
-        wData = be_scale_TF(wData);
-        fprintf(' Done. \n')
-
-        OPTIONS(iCluster).title_tf  = sprintf('%s - %s', strrep(sROI.Label,'_',' '), OPTIONS(iCluster).title_tf);
-
-        nfreq = length(OPTIONS(iCluster).wavelet.freqs_analyzed);
-        nTime = length(time);
-        
-        TFmask  = ones(nfreq,nTime);
-        is_zero = all(squeeze(wData(1,:,:)) == 0);
-        TFmask(:, is_zero) = 0;
-
-        sDataOut            = db_template('timefreqmat');
-        sDataOut.TF         = permute(wData, [1,3,2]); %nSensor x nTime x nFreq
-        sDataOut.RowNames   =  {sROI.Label};
-        sDataOut.TFmask     = TFmask;
-        sDataOut.DataType   = 'scout';
-        sDataOut.DataFile   = sInputs.FileName;
-        sDataOut.Time       = time;
-        sDataOut.Options    = OPTIONS(iCluster);
-        sDataOut.Freqs      = OPTIONS(iCluster).wavelet.freqs_analyzed;
-        sDataOut.Comment    = sprintf('CW [%s]', sROI.Label);
-        sDataOut.Method     = 'morlet';
-        sDataOut.Measure    = 'power';
-        sDataOut.Options.PowerUnits = 'physical';
-        sDataOut.DisplayUnits       =' \mumol.l-1'; % TODO: fix display units
-
-        % Generate a new file name in the same folder
-        sStudy = bst_get('Study', sInputs.iStudy);
-        OutputFile = bst_process('GetNewFilename', bst_fileparts(sStudy.FileName), 'timefreq_wavelet');
-        sDataOut.FileName = file_short(OutputFile);
-        bst_save(OutputFile, sDataOut, 'v7');
-        % Register in database
-        db_add_data(sInputs.iStudy, OutputFile, sDataOut);
-        OutputFiles{end+1} = OutputFile;
-        
-    end
-
-    bst_progress('stop');
-end 
-
-
-function data = getData(F , vertex, iTime, padding)
 
     if ~iscell(F)
         F = {F};
