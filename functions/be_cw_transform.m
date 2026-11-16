@@ -64,9 +64,6 @@ function [Cwave, OPTIONS] = be_cw_transform(data, OPTIONS, varargin)
     % --- resolution en octaves et en voies
     dj = log2(a_max/a_min)/J;
     aj = a_min*2.^((0:J)*dj);
-
-    % --- coefficients de fourier
-    Cwave = repmat(complex(0,0), M,N,J+1);
     
     % --- options
     OPTIONS.wavelet.scale_analyzed  = fliplr(aj);
@@ -74,10 +71,10 @@ function [Cwave, OPTIONS] = be_cw_transform(data, OPTIONS, varargin)
     OPTIONS.wavelet.Scone  = (f0/dt)./[1E-9,1:((N+1)/2-1),fliplr((1:(N/2-1))),1E-9];
     
     if options_only
+        Cwave = repmat(complex(0,0), M,N,J+1);
         return;
     end
     
- 
     % Pad signal - avoid border effects
     sP2 = floor(log2(N));
     pdS = 0;
@@ -86,23 +83,28 @@ function [Cwave, OPTIONS] = be_cw_transform(data, OPTIONS, varargin)
         data = padarray(data, [0 pdS], 'symmetric');
     end
 
-
-    % --- fft du signal
+    % --- fft of the signal
     f = fft(data,[],2);
+
     % --- espace de Fourier
     N2 = size(f,2);
     wk = 2.*pi/N2/dt*[1:fix(N2/2)];
     wk = [0., wk, -wk(fix((N2-1)/2):-1:1)];
-
-    % Transform 
     sqrt_aj = sqrt(aj);
+
+    % Build Psi with a loop: 1 x N x (J+1)
+    N = numel(wk);
+    Psi = zeros(1, N, J+1);
     for ai = 1:J+1
-
-        psi_wk = ones(M,1) * ( Morse_w(aj(ai)*wk,n,m) * sqrt_aj(ai) ) ;
-        tmpDT = ifft(f.*psi_wk, [], 2);
-        Cwave(:,:,J-ai+2) = tmpDT( :, (pdS+1):(end-pdS) );  
-
+        Psi(1,:,ai) = Morse_w(aj(ai)*wk, n, m) * sqrt_aj(ai);
     end
+    
+    % Apply all scales at once: M x N x (J+1)
+    tmpDT = ifft(f .* Psi, [], 2);
+
+    % Crop padding and flip dim 3 to match the J-ai+2 indexing
+    Cwave = flip(tmpDT(:, (pdS+1):(end-pdS), :), 3);
+
 end
 
 % ========================================================================
