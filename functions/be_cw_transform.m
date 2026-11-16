@@ -64,9 +64,6 @@ function [Cwave, OPTIONS] = be_cw_transform(data, OPTIONS, varargin)
     % --- resolution en octaves et en voies
     dj = log2(a_max/a_min)/J;
     aj = a_min*2.^((0:J)*dj);
-
-    % --- coefficients de fourier
-    Cwave = repmat(complex(0,0), M,N,J+1);
     
     % --- options
     OPTIONS.wavelet.scale_analyzed  = fliplr(aj);
@@ -74,10 +71,10 @@ function [Cwave, OPTIONS] = be_cw_transform(data, OPTIONS, varargin)
     OPTIONS.wavelet.Scone  = (f0/dt)./[1E-9,1:((N+1)/2-1),fliplr((1:(N/2-1))),1E-9];
     
     if options_only
+        Cwave = repmat(complex(0,0), M,N,J+1);
         return;
     end
     
- 
     % Pad signal - avoid border effects
     sP2 = floor(log2(N));
     pdS = 0;
