@@ -1,4 +1,4 @@
-function [WData, OPTIONS] = be_CWavelet(data, OPTIONS, varargin)
+function [WData, OPTIONS] = be_cw_transform(data, OPTIONS, varargin)
 % cette fonction calcule la transformee en ondelette complexe du signal
 % (data.Signal) echantillonne (1/data.Sampling). 
 % La famille d'ondelette est celle de Morse (dont Lusin et Cauchy sont des

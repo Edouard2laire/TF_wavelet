@@ -141,7 +141,7 @@ function OutputFiles = Run(sProcess, sInputs)
     
                 % Step 1 - compute time-frequency representation
                 fprintf('Tf-nirs [%d/%d] > Computing the CW decomposition ... ', iBlock, nBlocks)
-                [power, OPTIONS] = be_CWavelet(data_cortex, OPTIONS);
+                [power, OPTIONS] = be_cw_transform(data_cortex, OPTIONS);
                 power = permute(power(:, iOrigTime, :), [1, 3, 2]); % nVertex x Nfreq x Ntime
                 fprintf(' Done. \n')
     

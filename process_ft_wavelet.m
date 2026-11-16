@@ -137,7 +137,7 @@ function OutputFiles = Run(sProcess, sInputs)
 
                 % Step 1 - compute time-frequency representation
                 fprintf('Tf-nirs [%d/%d] > Computing the CW decomposition ... ', iBlock, nBlocks)
-                [power, OPTIONS] = be_CWavelet(data(iChannel, :), OPTIONS);
+                [power, OPTIONS] = be_cw_transform(data(iChannel, :), OPTIONS);
                 power = permute(power(:, iOrigTime, :), [1, 3, 2]); % N_channel x Nfreq x Ntime
                 fprintf(' Done. \n')
         
