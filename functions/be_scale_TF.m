@@ -4,7 +4,7 @@ function [power, ref] = be_scale_TF(power, ref)
 % If Ref is not provided, compoute the median power accross time for each
 % sensor.
 
-    if nargin < 2 || isempty(ref)
+    if nargin < 2 || isempty(ref) || any(isnan(ref))
         ref         = median(sqrt(sum(power.^2, 2)),3);
     end
 

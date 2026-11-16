@@ -1,4 +1,4 @@
-function [WData, OPTIONS] = be_CWavelet(data, OPTIONS, varargin)
+function [Cwave, OPTIONS] = be_cw_transform(data, OPTIONS, varargin)
 % cette fonction calcule la transformee en ondelette complexe du signal
 % (data.Signal) echantillonne (1/data.Sampling). 
 % La famille d'ondelette est celle de Morse (dont Lusin et Cauchy sont des
@@ -67,7 +67,6 @@ function [WData, OPTIONS] = be_CWavelet(data, OPTIONS, varargin)
 
     % --- coefficients de fourier
     Cwave = repmat(complex(0,0), M,N,J+1);
-    WData = [];
     
     % --- options
     OPTIONS.wavelet.scale_analyzed  = fliplr(aj);
@@ -104,8 +103,6 @@ function [WData, OPTIONS] = be_CWavelet(data, OPTIONS, varargin)
         Cwave(:,:,J-ai+2) = tmpDT( :, (pdS+1):(end-pdS) );  
 
     end
-
-    WData = squeeze(Cwave);
 end
 
 % ========================================================================
