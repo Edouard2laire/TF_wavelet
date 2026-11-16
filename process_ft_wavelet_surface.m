@@ -175,6 +175,7 @@ function OutputFiles = Run(sProcess, sInputs)
             sDataOut            = db_template('timefreqmat');
             sDataOut.TF(1, :, :) = wData';
             sDataOut.RowNames   =  {sROI.Label};
+            sDataOut.ref       = ref;
             sDataOut.TFmask     = TFmask;
             sDataOut.DataType   = 'scout';
             sDataOut.DataFile   = sInputs(iFile).FileName;
