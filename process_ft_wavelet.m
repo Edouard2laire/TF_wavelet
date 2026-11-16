@@ -224,7 +224,9 @@ function [OPTIONS, selected_clusters, TimeWindow] = getOptions(sProcess)
     OPTIONS.wavelet.nb_levels           = sProcess.options.nb_levels.Value{1};          % number of voices
     OPTIONS.wavelet.verbose             = 0;   
     OPTIONS.wavelet.display.fontscale   = 16;
-    OPTIONS.channelTypes                = sProcess.options.sensortypes.Value;
+    if isfield(sProcess.options, 'sensortypes')
+        OPTIONS.channelTypes                = sProcess.options.sensortypes.Value;
+    end
     OPTIONS.TimeWindow                  = TimeWindow;
 
 

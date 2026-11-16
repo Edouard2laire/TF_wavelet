@@ -218,7 +218,7 @@ function [data, iOrigTime, OPTIONS]  = getData(sData , OPTIONS, vertex)
         time = sData.Time;
         iTime = 1:length(time);
     else
-        iTime = panel_time('GetTimeIndices', sData.Time, TimeWindow');
+        iTime = panel_time('GetTimeIndices', sData.Time, OPTIONS.TimeWindow');
         time  = sData.Time(iTime);
     end
     OPTIONS.mandatory.DataTime     = time; 
