@@ -1,4 +1,4 @@
-function [Cwave, OPTIONS] = be_cw_transform(data, OPTIONS, varargin)
+function [Cwave, OPTIONS] = be_cw_transform(data, OPTIONS)
 % cette fonction calcule la transformee en ondelette complexe du signal
 % (data.Signal) echantillonne (1/data.Sampling). 
 % La famille d'ondelette est celle de Morse (dont Lusin et Cauchy sont des
@@ -19,7 +19,7 @@ function [Cwave, OPTIONS] = be_cw_transform(data, OPTIONS, varargin)
 % Copyright (C) 2012 - LATIS Team
 %
 %  Authors: JM Lina, 2012, jan 1st
-%
+%           Edouard Delaire, 2026
 %% ==============================================
 % License 
 %
@@ -37,10 +37,7 @@ function [Cwave, OPTIONS] = be_cw_transform(data, OPTIONS, varargin)
 %    along with BEst. If not, see <http://www.gnu.org/licenses/>.
 % -------------------------------------------------------------------------   
 
-    options_only = 0;
-    if nargin==1
-        options_only = 1;
-    end
+    options_only = (nargin == 1);
     
     % Set wavelet parameters:
     n       = OPTIONS.wavelet.vanish_moments;
@@ -51,8 +48,8 @@ function [Cwave, OPTIONS] = be_cw_transform(data, OPTIONS, varargin)
     [M,N] = size(data);
 
     % --- definition de l'ondelette
-    [wmin,wmax] = Morse_support_spectral(n,m);
-    [tmin,tmax] = Morse_support_temporel(n,m);
+    [wmin, wmax] = Morse_support_spectral(n,m);
+    [tmin, tmax] = Morse_support_temporel(n,m);
 
     % frequence centrale de l'ondelette de Cauchy
     f0          = (((n+0.5)/m).^(1/m))/2/pi; 
@@ -88,23 +85,18 @@ function [Cwave, OPTIONS] = be_cw_transform(data, OPTIONS, varargin)
 
     % --- espace de Fourier
     N2 = size(f,2);
-    wk = 2.*pi/N2/dt*[1:fix(N2/2)];
+    wk = 2.*pi/N2/dt*(1:fix(N2/2));
     wk = [0., wk, -wk(fix((N2-1)/2):-1:1)];
-    sqrt_aj = sqrt(aj);
 
     % Build Psi with a loop: 1 x N x (J+1)
-    N = numel(wk);
-    Psi = zeros(1, N, J+1);
-    for ai = 1:J+1
-        Psi(1,:,ai) = Morse_w(aj(ai)*wk, n, m) * sqrt_aj(ai);
-    end
-    
+    Psi = Morse_w(aj' * wk, n, m) .* sqrt(aj');    
+    Psi = permute(Psi, [3 2 1]);   
+
     % Apply all scales at once: M x N x (J+1)
     tmpDT = ifft(f .* Psi, [], 2);
 
     % Crop padding and flip dim 3 to match the J-ai+2 indexing
     Cwave = flip(tmpDT(:, (pdS+1):(end-pdS), :), 3);
-
 end
 
 % ========================================================================
