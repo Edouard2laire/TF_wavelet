@@ -23,19 +23,18 @@ function [power, title_tf] = be_apply_measure(tf, OPTIONS)
 % where x(t) = tf(:,:,t) and t spans (2+ofs):(end-1-ofs).
 
     ofs     = ceil(0.02*size(tf,3));
+    iTime   = (2+ofs):(size(tf,3)-1-ofs);
 
-    power   = zeros(size(tf));
-    iTime      = (2+ofs):(size(tf,3)-1-ofs);
-    power(:,:, iTime) = 0.5*abs(tf(:,:,iTime)).^2;
-    title_tf = 'Time-frequency Amplitude';
+    useTeager = isfield(OPTIONS.wavelet.display,'TaegerK') && strcmp(OPTIONS.wavelet.display.TaegerK,'yes');
+    power     = zeros(size(tf));
 
-    if isfield(OPTIONS.wavelet.display,'TaegerK') && strcmp(OPTIONS.wavelet.display.TaegerK,'yes') 
-
-        % Teager-Kaiser energy operator: 0.5*( |x(t)|^2 - Re[ x(t+1) * conj(x(t-1)) ] )
-        teagerTerm = 0.5 * real( tf(:,:,iTime+1) .* conj(tf(:,:,iTime-1)) );
-        power(:,:,iTime) = power(:,:,iTime) - teagerTerm;
-
-        title_tf = [title_tf, '(Taeger-Kaiser normalisation)'];
+    if useTeager
+        % power(t) = 0.5 * |x(t)|^2 - 0.5 * Re[ x(t+1) * conj(x(t-1)) ]
+        power(:,:,iTime) = 0.5*abs(tf(:,:,iTime)).^2 - 0.5 * real(tf(:,:,iTime+1) .* conj(tf(:,:,iTime-1)));
+        title_tf = 'Time-frequency Power (Taeger-Kaiser normalisation)';
+    else
+        % power(t) = 0.5 * |x(t)|^2 
+        power(:,:,iTime) = 0.5*abs(tf(:,:,iTime)).^2;
+        title_tf = 'Time-frequency Power';
     end
-
 end
