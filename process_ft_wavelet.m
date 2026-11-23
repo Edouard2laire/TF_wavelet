@@ -123,7 +123,7 @@ function OutputFiles = Run(sProcess, sInputs)
             [time, data, iOrigTime]     = getData(sInputs(iFile), OPTIONS, sClusters(iCluster));
             OPTIONS.mandatory.DataTime  = time; 
             
-            sizePerSample    = prod([size(data, 2), 1+OPTIONS.wavelet.nb_levels]);
+            sizePerSample = prod([size(data, 2), 1+OPTIONS.wavelet.nb_levels]);
             nSamples = size(data, 1);
             
             blockSize   = min(max(floor(MaxSizeDouble / sizePerSample), 1), nSamples);
@@ -151,7 +151,6 @@ function OutputFiles = Run(sProcess, sInputs)
                 OPTIONS.title_tf =  title_tf ;
                 fprintf(' Done. \n')
             
-        
                 % Step 3- Normalize the TF maps ( standardize power)
                 fprintf('Tf-nirs [%d/%d]> Normalizing the power of each vertex... ', iBlock, nBlocks)
                 [power, ref(iChannel)] = be_scale_TF(power, ref(iChannel));
@@ -188,7 +187,7 @@ function OutputFiles = Run(sProcess, sInputs)
             sDataOut.Measure    = 'power';
             sDataOut = bst_history('add',  sDataOut, 'Compute', 'Compute CW Time-Frequency');
             sDataOut.Options.PowerUnits = 'physical';
-            sDataOut.DisplayUnits       = '\mumol.l-1'; 
+            sDataOut.DisplayUnits       = 'power'; 
     
             % Generate a new file name in the same folder
             sStudy      = bst_get('Study', sInputs(iFile).iStudy);

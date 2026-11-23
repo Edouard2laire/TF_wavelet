@@ -137,7 +137,7 @@ function OutputFiles = Run(sProcess, sInputs)
 
             % Initialize wavelet transform
             [Psi, OPTIONS] = be_cw_init(size(data_cortex, 2), OPTIONS);
-            
+
             fprintf('Tf-nirs > Analyzing %d blokcs of %d signals... \n', nBlocks,  blockSize)
             for iBlock = 1 : nBlocks
 
@@ -192,7 +192,7 @@ function OutputFiles = Run(sProcess, sInputs)
             sDataOut.Method     = 'morlet';
             sDataOut.Measure    = 'power';
             sDataOut.Options.PowerUnits = 'physical';
-            sDataOut.DisplayUnits       =' \mumol.l-1'; 
+            sDataOut.DisplayUnits       ='power'; 
     
             % Generate a new file name in the same folder
             sStudy = bst_get('Study', sInputs(iFile).iStudy);
