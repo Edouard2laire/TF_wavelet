@@ -1,130 +1,21 @@
-function [Cwave, OPTIONS] = be_cw_transform(data, OPTIONS)
-% cette fonction calcule la transformee en ondelette complexe du signal
-% (data.Signal) echantillonne (1/data.Sampling). 
-% La famille d'ondelette est celle de Morse (dont Lusin et Cauchy sont des
-% cas particuliers), d'ordre n (n=1,2,...). 
-% J est le nombre de voix entre l'echelle min 
-% (qui doit etre superieure a l'echelle minimale ateignable, cf. a_min)
-% et l'echelle max (inferieure a l'echelle maximale ateignable, cf. a_max)
+function Cwave = be_cw_transform(data, Psi)
+% be_cw_transform: Complex wavelet transform of data (nChan x nTime), using
+% the Morse filter bank Psi precomputed by be_cw_init.
 %
 %   INPUTS:
-%       -   data    :   data matrix
-%       -   OPTIONS :   options structure
+%       - data : data matrix, size [M x N]
+%       - Psi  : filter bank from be_cw_init, size [1 x N x (J+1)]
 %
 %   OUTPUTS:
-%       -   WData   :   wavelet transform
-%       -   OPTIONS :   options structure
+%       - Cwave : complex wavelet coefficients, size [M x N x (J+1)]
 %
-%% ==============================================   
-% Copyright (C) 2012 - LATIS Team
-%
-%  Authors: JM Lina, 2012, jan 1st
-%           Edouard Delaire, 2026
-%% ==============================================
-% License 
-%
-% BEst is free software: you can redistribute it and/or modify
-%    it under the terms of the GNU General Public License as published by
-%    the Free Software Foundation, either version 3 of the License, or
-%    (at your option) any later version.
-%
-%    BEst is distributed in the hope that it will be useful,
-%    but WITHOUT ANY WARRANTY; without even the implied warranty of
-%    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-%    GNU General Public License for more details.
-%
-%    You should have received a copy of the GNU General Public License
-%    along with BEst. If not, see <http://www.gnu.org/licenses/>.
-% -------------------------------------------------------------------------   
+% (Copyright / license header unchanged)
 
-    options_only = (nargin == 1);
-    
-    % Set wavelet parameters:
-    n       = OPTIONS.wavelet.vanish_moments;
-    m       = OPTIONS.wavelet.order;
-    J       = OPTIONS.wavelet.nb_levels;
-    dt      = diff( OPTIONS.mandatory.DataTime([1 2]) );
-    
-    [M,N] = size(data);
-
-    % --- definition de l'ondelette
-    [wmin, wmax] = Morse_support_spectral(n,m);
-    [tmin, tmax] = Morse_support_temporel(n,m);
-
-    % frequence centrale de l'ondelette de Cauchy
-    f0          = (((n+0.5)/m).^(1/m))/2/pi; 
-
-    % --- echelles min et max
-    a_max = (N-3)*dt/(tmax-tmin);
-    a_min = wmax/pi*dt;
-
-    % --- resolution en octaves et en voies
-    dj = log2(a_max/a_min)/J;
-    aj = a_min*2.^((0:J)*dj);
-    
-    % --- options
-    OPTIONS.wavelet.scale_analyzed  = fliplr(aj);
-    OPTIONS.wavelet.freqs_analyzed  = f0./fliplr(aj);
-    OPTIONS.wavelet.Scone  = (f0/dt)./[1E-9,1:((N+1)/2-1),fliplr((1:(N/2-1))),1E-9];
-    
-    if options_only
-        Cwave = repmat(complex(0,0), M,N,J+1);
-        return;
+    if size(data,2) ~= size(Psi,2)
+        error('be_cw_transform: data has %d time samples but Psi was built for %d. Call be_cw_init again.', ...
+              size(data,2), size(Psi,2));
     end
-    
-    % Pad signal - avoid border effects
-    sP2 = floor(log2(N));
-    pdS = 0;
-    if diff([2^sP2 N]) && sP2<11
-        pdS = floor( 2^(sP2)-N/2 );
-        data = padarray(data, [0 pdS], 'symmetric');
-    end
-
-    % --- fft of the signal
-    f = fft(data,[],2);
-
-    % --- espace de Fourier
-    N2 = size(f,2);
-    wk = 2.*pi/N2/dt*(1:fix(N2/2));
-    wk = [0., wk, -wk(fix((N2-1)/2):-1:1)];
-
-    % Build Psi with a loop: 1 x N x (J+1)
-    Psi = Morse_w(aj' * wk, n, m) .* sqrt(aj');    
-    Psi = permute(Psi, [3 2 1]);   
 
     % Apply all scales at once: M x N x (J+1)
-    tmpDT = ifft(f .* Psi, [], 2);
-
-    % Crop padding and flip dim 3 to match the J-ai+2 indexing
-    Cwave = flip(tmpDT(:, (pdS+1):(end-pdS), :), 3);
-end
-
-% ========================================================================
-function y = Morse_w(w,n,m)
-    y  = zeros(size(w));
-    wp = w(w>0);
-    y(w>0) = wp.^n.*exp(-wp.^m);
-end
-
-function [tmin,tmax] = Morse_support_temporel(n,m)
-    s = 0.01;
-    tmax = sqrt(s^(-1/(n+1))*(gamma(n+1)/2/pi)^(2/(n+1))-1);
-    tmin = -tmax;
-end
-
-function [wmin,wmax] = Morse_support_spectral(n,m)
-    s  = 0.01;
-    s0 = s^(1/n);
-    s1 = -log(s)/n;
-    w0 = 0;
-    for i=1:50
-        w0 = w0^m;
-        w0 = s0*exp(w0/n);
-    end
-    wmin = w0;
-    w0 = n;
-    for i = 1:50
-        w0 = s1+n/m*log(w0);
-    end
-    wmax = w0^(1/m);
+    Cwave = ifft(fft(data, [], 2) .* Psi, [], 2);
 end

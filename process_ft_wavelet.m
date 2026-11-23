@@ -128,16 +128,20 @@ function OutputFiles = Run(sProcess, sInputs)
             
             blockSize   = min(max(floor(MaxSizeDouble / sizePerSample), 1), nSamples);
             nBlocks     = ceil(nSamples / blockSize);
-            
-            meanvar_estimator  = be_WelfordVariance( size(data, 1),  [1+OPTIONS.wavelet.nb_levels, sum(iOrigTime)]);
-            fprintf('Tf-nirs > Analyzing %d blokcs of %d signals... \n', nBlocks,  blockSize)
 
+            % Initialize mean estimator
+            meanvar_estimator  = be_WelfordVariance( size(data, 1),  [1+OPTIONS.wavelet.nb_levels, sum(iOrigTime)]);
+
+            % Initialize wavelet transform
+            [Psi, OPTIONS] = be_cw_init(size(data, 2), OPTIONS);
+
+            fprintf('Tf-nirs > Analyzing %d blokcs of %d signals... \n', nBlocks,  blockSize)
             for iBlock = 1 : nBlocks
                 iChannel = [((iBlock-1) * blockSize + 1) : min(iBlock * blockSize, nSamples)];
 
                 % Step 1 - compute time-frequency representation
                 fprintf('Tf-nirs [%d/%d] > Computing the CW decomposition ... ', iBlock, nBlocks)
-                [power, OPTIONS] = be_cw_transform(data(iChannel, :), OPTIONS);
+                power = be_cw_transform(data(iChannel, :), Psi);
                 power = permute(power(:, iOrigTime, :), [1, 3, 2]); % N_channel x Nfreq x Ntime
                 fprintf(' Done. \n')
         
