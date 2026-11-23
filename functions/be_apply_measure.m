@@ -31,7 +31,7 @@ function [power, title_tf] = be_apply_measure(tf, OPTIONS)
     if useTeager
         % power(t) = 0.5 * |x(t)|^2 - 0.5 * Re[ x(t+1) * conj(x(t-1)) ]
         power(:,:,iTime) = 0.5*abs(tf(:,:,iTime)).^2 - 0.5 * real(tf(:,:,iTime+1) .* conj(tf(:,:,iTime-1)));
-        title_tf = 'Time-frequency Power (Taeger-Kaiser normalisation)';
+        title_tf = 'Time-frequency Power (Teager-Kaiser energy operator)';
     else
         % power(t) = 0.5 * |x(t)|^2 
         power(:,:,iTime) = 0.5*abs(tf(:,:,iTime)).^2;
