@@ -179,7 +179,7 @@ function OutputFiles = Run(sProcess, sInputs)
                 meanvar_estimator.update(power);
             end
 
-            OPTIONS.title_tf  = sprintf('%s - %s', matlab.lang.makeValidName(selected_clusters{iCluster}), OPTIONS.title_tf);
+            OPTIONS.title_tf  = sprintf('%s - %s', matlab.lang.makeValidName(sClusters(iCluster).Label), OPTIONS.title_tf);
             
             % Step 6. Save in Brainstorm
             nfreq = length(OPTIONS.wavelet.freqs_analyzed);
@@ -192,7 +192,7 @@ function OutputFiles = Run(sProcess, sInputs)
             sDataOut            = db_template('timefreqmat');
             sDataOut.TF(1, :, :)= meanvar_estimator.Mean'; % 1 x nTime x nFreq
             sDataOut.Std(1, :, :)= meanvar_estimator.StdDev()'; % 1 x nTime x nFreq
-            sDataOut.RowNames   = selected_clusters(iCluster);
+            sDataOut.RowNames   = {sClusters(iCluster).Label};
             sDataOut.ref       = ref;
             sDataOut.nAvg       = meanvar_estimator.Count;
             sDataOut.Leff       = meanvar_estimator.Count;
@@ -203,7 +203,7 @@ function OutputFiles = Run(sProcess, sInputs)
             sDataOut.Freqs      = OPTIONS.wavelet.freqs_analyzed;
             sDataOut.Options    = OPTIONS;
             sDataOut.Options.PowerUnits = 'physical';
-            sDataOut.Comment    = sprintf('CW (%s)', matlab.lang.makeValidName(selected_clusters{iCluster}));
+            sDataOut.Comment    = sprintf('CW (%s)', matlab.lang.makeValidName(sClusters(iCluster).Label));
             sDataOut.Method     = 'morse';
             sDataOut = bst_history('add',  sDataOut, 'Compute', 'Compute CW Time-Frequency (Morse wavelet)');
             if  strcmpi(OPTIONS.wavelet.measure, 'none')
@@ -272,8 +272,27 @@ function sClusters = getClusters(ChannelFile, selected_clusters)
         return;
     end
     
-    % We consider all channels. We group them by group and modality
-    error('Todo...')
+    all_modality    = unique({sChannels.Channel.Type});
+    sClusters       = [];
+    for iMod = 1:length(all_modality)
+        modality = all_modality{iMod};
+        iChannelsMod = good_channel(sChannels.Channel, [], modality);
+        all_groups =  unique({sChannels.Channel(iChannelsMod).Group});
+        for iGroup = 1:length(all_groups)
+            group = all_groups{iGroup};
+
+            iChannels = find( ...
+                                strcmp({sChannels.Channel.Type}, modality) & ...
+                                strcmp({sChannels.Channel.Group}, group) ...
+                             );
+
+            new_cluster = db_template('cluster');
+            new_cluster.Label = sprintf('%s - %s', modality, group);
+            new_cluster.Sensors = {sChannels.Channel(iChannels).Name};
+
+            sClusters = [sClusters, new_cluster];
+        end
+    end
 end
 
 
@@ -290,7 +309,11 @@ function [time, data, iOrigTime, selected_channels] = getData(sInput, OPTIONS, c
     sChannels           = in_bst_channel(sInput.ChannelFile);
 
     % Select channels
-    iChannels           = good_channel(sChannels.Channel, sData.ChannelFlag, OPTIONS.channelTypes) ;
+    if ~isempty(OPTIONS.channelTypes)
+        iChannels           = good_channel(sChannels.Channel, sData.ChannelFlag, OPTIONS.channelTypes);
+    else
+        iChannels           = find(sData.ChannelFlag == 1);
+    end
     sChannels           = sChannels.Channel(iChannels);
 
     % Select Time
