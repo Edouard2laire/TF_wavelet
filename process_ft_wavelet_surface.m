@@ -30,60 +30,17 @@ end
 %% ===== GET DESCRIPTION =====
 function sProcess = GetDescription()
     % Description the process
+    sProcess = process_ft_wavelet('GetDescription');
+
     sProcess.Comment     = 'Time-frequency: Morse Wavelet(source)';
     sProcess.Category    = 'Custom';
     sProcess.SubGroup    = {'NIRS','Frequency'};
     sProcess.Index       = 1705;
     sProcess.Description = 'http://www.fieldtriptoolbox.org/tutorial/timefrequencyanalysis';
-    % Definition of the input accepted by this process
-    sProcess.InputTypes  = {'import', 'data'};
-    sProcess.OutputTypes = {'import', 'data'};
-    sProcess.nInputs     = 1;
-    sProcess.nMinFiles   = 1;
+
     % Definition of the input accepted by this process
     sProcess.InputTypes  = { 'results'};
     sProcess.OutputTypes = { 'timefreq'};
-    sProcess.nInputs     = 1;
-    sProcess.nMinFiles   = 1;
-
-    % Options: Time window
-    sProcess.options.timewindow.Comment = 'Time window:';
-    sProcess.options.timewindow.Type    = 'timewindow';
-    sProcess.options.timewindow.Value   = [];
-    sProcess.options.timewindow.Group   = 'input';
-    
-
-    % === CLUSTERS
-    sProcess.options.scouts.Comment = '';
-    sProcess.options.scouts.Type    = 'scout';
-    sProcess.options.scouts.Value   = {};
-
-
-    sProcess.options.label1.Comment = '<b>Wavelet parameters:</b>';
-    sProcess.options.label1.Type    = 'label';
-
-
-    sProcess.options.vanish_moments.Comment = 'Vanishing Moment: ';
-    sProcess.options.vanish_moments.Type    = 'value';
-    sProcess.options.vanish_moments.Value   = {1.5, '',1};
-
-    sProcess.options.order.Comment = 'Order: ';
-    sProcess.options.order.Type    = 'value';
-    sProcess.options.order.Value   = {20, '',0};
-
-    sProcess.options.nb_levels.Comment = 'Nb levels: ';
-    sProcess.options.nb_levels.Type    = 'value';
-    sProcess.options.nb_levels.Value   = {1024, '',0};
-
-    sProcess.options.label2.Comment = '<b>Display options:</b>';
-    sProcess.options.label2.Type    = 'label';
-
-
-    sProcess.options.normalization.Comment = 'Apply normalization: ';
-    sProcess.options.normalization.Type    = 'checkbox';
-    sProcess.options.normalization.Value   = 1;
-
-
 end
 
 

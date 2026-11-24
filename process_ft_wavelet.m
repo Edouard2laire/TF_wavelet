@@ -28,20 +28,17 @@ end
 
 %% ===== GET DESCRIPTION =====
 function sProcess = GetDescription() 
+
     % Description the process
     sProcess.Comment     = 'Time-frequency: Morse Wavelet';
     sProcess.Category    = 'Custom';
     sProcess.SubGroup    = {'NIRS','Frequency'};
     sProcess.Index       = 1705;
     sProcess.Description = 'http://www.fieldtriptoolbox.org/tutorial/timefrequencyanalysis';
+
     % Definition of the input accepted by this process
-    sProcess.InputTypes  = {'import','raw', 'data'};
-    sProcess.OutputTypes = {'import','data', 'data'};
-    sProcess.nInputs     = 1;
-    sProcess.nMinFiles   = 1;
-    % Definition of the input accepted by this process
-    sProcess.InputTypes  = {'data', 'raw', 'matrix'};
-    sProcess.OutputTypes = {'timefreq', 'timefreq', 'timefreq'};
+    sProcess.InputTypes  = {'data'};
+    sProcess.OutputTypes = {'timefreq'};
     sProcess.nInputs     = 1;
     sProcess.nMinFiles   = 1;
 
@@ -55,26 +52,37 @@ function sProcess = GetDescription()
     sProcess.options.sensortypes.Comment = 'Sensor types or names (empty=all): ';
     sProcess.options.sensortypes.Type    = 'text';
     sProcess.options.sensortypes.Value   = 'NIRS';
+    sProcess.options.sensortypes.InputTypes = {'data'};
 
     % === CLUSTERS
     sProcess.options.clusters.Comment = '';
     sProcess.options.clusters.Type    = 'cluster_confirm';
     sProcess.options.clusters.Value   = [];
+    sProcess.options.clusters.InputTypes = {'data'};
 
+        % === CLUSTERS
+    sProcess.options.scouts.Comment = '';
+    sProcess.options.scouts.Type    = 'scout';
+    sProcess.options.scouts.Value   = {};
+    sProcess.options.scouts.InputTypes = {'results'};
 
     sProcess.options.label1.Comment = '<b>Wavelet parameters:</b>';
     sProcess.options.label1.Type    = 'label';
 
+    sProcess.options.label11.Comment = ['<b>Recommended parameters:</b> <br/>' ...
+                                        '<li>EEG/MEG: vanishing moments = 5.3, order = 40</li>' ...
+                                        '<li>NIRS: vanishing moments = 1.5, order = 20</li>'];
+    sProcess.options.label11.Type    = 'label';
 
-    sProcess.options.vanish_moments.Comment = 'Vanishing Moment: ';
+    sProcess.options.vanish_moments.Comment = str_pad('Vanishing Moment:', 20);
     sProcess.options.vanish_moments.Type    = 'value';
     sProcess.options.vanish_moments.Value   = {5.3, '',1};
 
-    sProcess.options.order.Comment = 'Order: ';
+    sProcess.options.order.Comment = str_pad('Order:', 20);
     sProcess.options.order.Type    = 'value';
     sProcess.options.order.Value   = {40, '',0};
 
-    sProcess.options.nb_levels.Comment = 'Nb levels: ';
+    sProcess.options.nb_levels.Comment = str_pad('Nb levels:', 20);
     sProcess.options.nb_levels.Type    = 'value';
     sProcess.options.nb_levels.Value   = {1024, '',0};
 
@@ -88,6 +96,12 @@ function sProcess = GetDescription()
 
 end
 
+function s = str_pad(s, padsize)
+    if (length(s) < padsize)
+        s = [repmat('&nbsp;', 1, padsize - length(s)), s];
+    end
+    s = ['<FONT FACE="monospace">' s '</FONT>'];
+end
 
 %% ===== FORMAT COMMENT =====
 function Comment = FormatComment(sProcess) 
