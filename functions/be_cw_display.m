@@ -1,27 +1,42 @@
-function hFig = be_cw_display(nTime, OPTIONS, fDisplay)
+function hFig = be_cw_display(OPTIONS, fs, duration, fDisplay)
 % be_cw_display: Interactive display of the time-frequency properties of the
 % Morse wavelet filter bank built by be_cw_init.
 %
 %   INPUTS:
-%       - nTime    : number of time samples of the data to be transformed
-%       - OPTIONS  : options structure (same as for be_cw_init)
+%       - OPTIONS  : options structure (same as for be_cw_init). The field
+%                    OPTIONS.mandatory.DataTime is not needed, it is built
+%                    here from fs and duration.
+%       - fs       : sampling rate in Hz
+%       - duration : (optional) file duration in seconds. If missing or empty,
+%                    the user is asked for it in a dialog box.
 %       - fDisplay : (optional) initial frequency in Hz at which the wavelet
 %                    is drawn. Default: geometric mean of the analyzed frequencies.
 %
 %   OUTPUT:
-%       - hFig     : handle of the figure
+%       - hFig     : handle of the figure ([] if the user cancelled)
 %
-% Spectral resolution : FWHM (Hz) of |Psi(f)|, the wavelet amplitude spectrum
-% Temporal resolution : FWHM (s) of |psi(t)|, the wavelet envelope
-%
-% The slider selects one of the analyzed frequencies. A marker shows the
-% selected frequency on both resolution plots and the wavelet is redrawn.
-%
-% (Copyright / license header: same as be_cw_transform)
+% (rest of the header unchanged)
 
-    if nargin < 3
-        fDisplay = [];
+    if nargin < 3, duration = []; end
+    if nargin < 4, fDisplay = []; end
+    hFig = [];
+
+    % --- Ask for the file duration if it was not provided
+    if isempty(duration)
+        answer = inputdlg('File duration (seconds):', 'Morse wavelet', 1, {'600'});
+        if isempty(answer)
+            return;                                  % cancelled
+        end
+        duration = str2double(answer{1});
     end
+    nTime = round(duration * fs);
+    if ~isscalar(duration) || ~isfinite(duration) || duration <= 0 || nTime < 8
+        error('be_cw_display: invalid file duration (%s s) for a sampling rate of %g Hz.', ...
+              num2str(duration), fs);
+    end
+
+    % --- Time vector consistent with the data that will be transformed
+    OPTIONS.mandatory.DataTime = (0:nTime-1) / fs;
 
     % --- Build the filter bank (scales ordered as OPTIONS.wavelet.scale_analyzed)
     [Psi, OPTIONS] = be_cw_init(nTime, OPTIONS);

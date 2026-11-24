@@ -86,6 +86,11 @@ function sProcess = GetDescription()
     sProcess.options.nb_levels.Type    = 'value';
     sProcess.options.nb_levels.Value   = {1024, '',0};
 
+    % === Display properties
+    sProcess.options.display.Comment = {'process_ft_wavelet(''DisplaySpec'', iProcess, sfreq);', '<BR>', 'Display wavelet'};
+    sProcess.options.display.Type    = 'button';
+    sProcess.options.display.Value   = [];
+    
     sProcess.options.label3.Comment = '<b>Compute the following measure:</b>';
     sProcess.options.label3.Type    = 'label';
     sProcess.options.label3.Group    = 'output';
@@ -730,5 +735,23 @@ function [F, iOrigTime] = pad_signal(time, F)
     iOrigTime   = ~isnan(ext_time);
 
     F = F(:, 1:2^p);
+end
+
+%% ===== DISPLAY FILTER SPECS =====
+function DisplaySpec(iProcess, sfreq) 
+    % Get current process options
+    global GlobalData;
+    sProcess = GlobalData.Processes.Current(iProcess);
+
+    % Get options
+    [OPTIONS, selected_clusters] = getOptions(sProcess);
+    
+    if ~isempty(OPTIONS.TimeWindow)
+        duration =  OPTIONS.TimeWindow(2) -  OPTIONS.TimeWindow(1);
+    else
+        duration = [];
+    end
+
+    be_cw_display(OPTIONS, sfreq, duration);
 end
 
