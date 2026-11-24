@@ -265,8 +265,15 @@ function sClusters = getClusters(ChannelFile, selected_clusters)
     sChannels           = in_bst_channel(ChannelFile);
 
     % Get cluster 
-    icluster            = cellfun(@(x)find(strcmp( {sChannels.Clusters.Label},x)),  selected_clusters);
-    sClusters             = sChannels.Clusters(icluster);
+    if ~isempty(selected_clusters)
+        icluster            = cellfun(@(x)find(strcmp( {sChannels.Clusters.Label},x)),  selected_clusters);
+        sClusters             = sChannels.Clusters(icluster);
+        
+        return;
+    end
+    
+    % We consider all channels. We group them by group and modality
+    error('Todo...')
 end
 
 
