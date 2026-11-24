@@ -181,7 +181,7 @@ function OutputFiles = Run(sProcess, sInputs)
             nTime = length(time);
             
             TFmask  = ones(nfreq, nTime);
-            is_zero = all(squeeze(power(1,:)) == 0);
+            is_zero = all(squeeze(power(1,:, :)) == 0);
             TFmask(:, is_zero) = 0;
              
             sDataOut            = db_template('timefreqmat');
@@ -199,7 +199,7 @@ function OutputFiles = Run(sProcess, sInputs)
             sDataOut.Options    = OPTIONS;
             sDataOut.Options.PowerUnits = 'physical';
             sDataOut.Comment    = sprintf('CW (%s)', matlab.lang.makeValidName(selected_clusters{iCluster}));
-            sDataOut.Method     = 'morlet';
+            sDataOut.Method     = 'morse';
             sDataOut = bst_history('add',  sDataOut, 'Compute', 'Compute CW Time-Frequency (Morse wavelet)');
             if  strcmpi(OPTIONS.wavelet.measure, 'none')
                 sDataOut.DisplayUnits = ''; 

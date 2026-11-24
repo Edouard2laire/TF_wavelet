@@ -146,11 +146,16 @@ function OutputFiles = Run(sProcess, sInputs)
             sDataOut.Options    = OPTIONS;
             sDataOut.Freqs      = OPTIONS.wavelet.freqs_analyzed;
             sDataOut.Comment    = sprintf('CW [%s]', sROI.Label);
-            sDataOut.Method     = 'morlet';
-            sDataOut.Measure    = 'power';
+            sDataOut.Method     = 'morse';
             sDataOut.Options.PowerUnits = 'physical';
-            sDataOut.DisplayUnits       ='power'; 
-    
+            sDataOut = bst_history('add',  sDataOut, 'Compute', 'Compute CW Time-Frequency (Morse wavelet)');
+            if  strcmpi(OPTIONS.wavelet.measure, 'none')
+                sDataOut.DisplayUnits = ''; 
+                sDataOut.Measure      = 'none';
+            else
+                sDataOut.DisplayUnits = 'power'; 
+                sDataOut.Measure      = 'power';
+            end    
             % Generate a new file name in the same folder
             sStudy = bst_get('Study', sInputs(iFile).iStudy);
             OutputFile = bst_process('GetNewFilename', bst_fileparts(sStudy.FileName), 'timefreq_wavelet');
