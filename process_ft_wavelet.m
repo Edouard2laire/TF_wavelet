@@ -28,20 +28,17 @@ end
 
 %% ===== GET DESCRIPTION =====
 function sProcess = GetDescription() 
+
     % Description the process
     sProcess.Comment     = 'Time-frequency: Morse Wavelet';
     sProcess.Category    = 'Custom';
     sProcess.SubGroup    = {'NIRS','Frequency'};
     sProcess.Index       = 1705;
     sProcess.Description = 'http://www.fieldtriptoolbox.org/tutorial/timefrequencyanalysis';
+
     % Definition of the input accepted by this process
-    sProcess.InputTypes  = {'import','raw', 'data'};
-    sProcess.OutputTypes = {'import','data', 'data'};
-    sProcess.nInputs     = 1;
-    sProcess.nMinFiles   = 1;
-    % Definition of the input accepted by this process
-    sProcess.InputTypes  = {'data', 'raw', 'matrix'};
-    sProcess.OutputTypes = {'timefreq', 'timefreq', 'timefreq'};
+    sProcess.InputTypes  = {'data'};
+    sProcess.OutputTypes = {'timefreq'};
     sProcess.nInputs     = 1;
     sProcess.nMinFiles   = 1;
 
@@ -55,39 +52,62 @@ function sProcess = GetDescription()
     sProcess.options.sensortypes.Comment = 'Sensor types or names (empty=all): ';
     sProcess.options.sensortypes.Type    = 'text';
     sProcess.options.sensortypes.Value   = 'NIRS';
+    sProcess.options.sensortypes.InputTypes = {'data'};
 
     % === CLUSTERS
     sProcess.options.clusters.Comment = '';
     sProcess.options.clusters.Type    = 'cluster_confirm';
     sProcess.options.clusters.Value   = [];
+    sProcess.options.clusters.InputTypes = {'data'};
 
+        % === CLUSTERS
+    sProcess.options.scouts.Comment = '';
+    sProcess.options.scouts.Type    = 'scout';
+    sProcess.options.scouts.Value   = {};
+    sProcess.options.scouts.InputTypes = {'results'};
 
     sProcess.options.label1.Comment = '<b>Wavelet parameters:</b>';
     sProcess.options.label1.Type    = 'label';
 
+    sProcess.options.label11.Comment = ['<b>Recommended parameters:</b> <br/>' ...
+                                        '<li>EEG/MEG: vanishing moments = 5.3, order = 40</li>' ...
+                                        '<li>NIRS: vanishing moments = 1.5, order = 20</li>'];
+    sProcess.options.label11.Type    = 'label';
 
-    sProcess.options.vanish_moments.Comment = 'Vanishing Moment: ';
+    sProcess.options.vanish_moments.Comment = str_pad('Vanishing Moment:', 20);
     sProcess.options.vanish_moments.Type    = 'value';
     sProcess.options.vanish_moments.Value   = {5.3, '',1};
 
-    sProcess.options.order.Comment = 'Order: ';
+    sProcess.options.order.Comment = str_pad('Order:', 20);
     sProcess.options.order.Type    = 'value';
     sProcess.options.order.Value   = {40, '',0};
 
-    sProcess.options.nb_levels.Comment = 'Nb levels: ';
+    sProcess.options.nb_levels.Comment = str_pad('Nb levels:', 20);
     sProcess.options.nb_levels.Type    = 'value';
     sProcess.options.nb_levels.Value   = {1024, '',0};
 
-    sProcess.options.label2.Comment = '<b>Display options:</b>';
-    sProcess.options.label2.Type    = 'label';
+    % === Display properties
+    sProcess.options.display.Comment = {'process_ft_wavelet(''DisplaySpec'', iProcess, sfreq);', '<BR>', 'Display wavelet'};
+    sProcess.options.display.Type    = 'button';
+    sProcess.options.display.Value   = [];
+    
+    sProcess.options.label3.Comment = '<b>Compute the following measure:</b>';
+    sProcess.options.label3.Type    = 'label';
+    sProcess.options.label3.Group    = 'output';
 
-
-    sProcess.options.normalization.Comment = 'Apply normalization: ';
-    sProcess.options.normalization.Type    = 'checkbox';
-    sProcess.options.normalization.Value   = 1;
-
+    sProcess.options.measure.Comment  = {'None (save complex values)', 'Power', 'Instantaneous energy (Teager-Kaiser energy operator)', ''; ...
+                                      'none', 'power', 'TeagerK', ''};
+    sProcess.options.measure.Type     = 'radio_linelabel';
+    sProcess.options.measure.Value    = 'TeagerK';
+    sProcess.options.measure.Group    = 'output';
 end
 
+function s = str_pad(s, padsize)
+    if (length(s) < padsize)
+        s = [repmat('&nbsp;', 1, padsize - length(s)), s];
+    end
+    s = ['<FONT FACE="monospace">' s '</FONT>'];
+end
 
 %% ===== FORMAT COMMENT =====
 function Comment = FormatComment(sProcess) 
@@ -166,7 +186,7 @@ function OutputFiles = Run(sProcess, sInputs)
             nTime = length(time);
             
             TFmask  = ones(nfreq, nTime);
-            is_zero = all(squeeze(power(1,:)) == 0);
+            is_zero = all(squeeze(power(1,:, :)) == 0);
             TFmask(:, is_zero) = 0;
              
             sDataOut            = db_template('timefreqmat');
@@ -182,13 +202,18 @@ function OutputFiles = Run(sProcess, sInputs)
             sDataOut.Time       = time;
             sDataOut.Freqs      = OPTIONS.wavelet.freqs_analyzed;
             sDataOut.Options    = OPTIONS;
-            sDataOut.Comment    = sprintf('CW (%s)', matlab.lang.makeValidName(selected_clusters{iCluster}));
-            sDataOut.Method     = 'morlet';
-            sDataOut.Measure    = 'power';
-            sDataOut = bst_history('add',  sDataOut, 'Compute', 'Compute CW Time-Frequency');
             sDataOut.Options.PowerUnits = 'physical';
-            sDataOut.DisplayUnits       = 'power'; 
-    
+            sDataOut.Comment    = sprintf('CW (%s)', matlab.lang.makeValidName(selected_clusters{iCluster}));
+            sDataOut.Method     = 'morse';
+            sDataOut = bst_history('add',  sDataOut, 'Compute', 'Compute CW Time-Frequency (Morse wavelet)');
+            if  strcmpi(OPTIONS.wavelet.measure, 'none')
+                sDataOut.DisplayUnits = ''; 
+                sDataOut.Measure      = 'none';
+            else
+                sDataOut.DisplayUnits = 'power'; 
+                sDataOut.Measure      = 'power';
+            end
+
             % Generate a new file name in the same folder
             sStudy      = bst_get('Study', sInputs(iFile).iStudy);
             OutputFile  = bst_process('GetNewFilename', bst_fileparts(sStudy.FileName), 'timefreq_wavelet');
@@ -225,19 +250,14 @@ function [OPTIONS, selected_clusters, TimeWindow] = getOptions(sProcess)
     OPTIONS.wavelet.vanish_moments      = sProcess.options.vanish_moments.Value{1} ;    % vanish moments
     OPTIONS.wavelet.order               = sProcess.options.order.Value{1} ;             % spectral decay
     OPTIONS.wavelet.nb_levels           = sProcess.options.nb_levels.Value{1};          % number of voices
-    OPTIONS.wavelet.verbose             = 0;   
-    OPTIONS.wavelet.display.fontscale   = 16;
+    OPTIONS.wavelet.verbose             = 0; 
+    OPTIONS.wavelet.measure             = sProcess.options.measure.Value;
+
     if isfield(sProcess.options, 'sensortypes')
         OPTIONS.channelTypes                = sProcess.options.sensortypes.Value;
     end
+
     OPTIONS.TimeWindow                  = TimeWindow;
-
-
-    if sProcess.options.normalization.Value
-        OPTIONS.wavelet.display.TaegerK = 'yes';
-    else
-        OPTIONS.wavelet.display.TaegerK = 'no';
-    end
 end
 
 function sClusters = getClusters(ChannelFile, selected_clusters)
@@ -245,8 +265,15 @@ function sClusters = getClusters(ChannelFile, selected_clusters)
     sChannels           = in_bst_channel(ChannelFile);
 
     % Get cluster 
-    icluster            = cellfun(@(x)find(strcmp( {sChannels.Clusters.Label},x)),  selected_clusters);
-    sClusters             = sChannels.Clusters(icluster);
+    if ~isempty(selected_clusters)
+        icluster            = cellfun(@(x)find(strcmp( {sChannels.Clusters.Label},x)),  selected_clusters);
+        sClusters             = sChannels.Clusters(icluster);
+        
+        return;
+    end
+    
+    % We consider all channels. We group them by group and modality
+    error('Todo...')
 end
 
 
@@ -715,5 +742,23 @@ function [F, iOrigTime] = pad_signal(time, F)
     iOrigTime   = ~isnan(ext_time);
 
     F = F(:, 1:2^p);
+end
+
+%% ===== DISPLAY FILTER SPECS =====
+function DisplaySpec(iProcess, sfreq) 
+    % Get current process options
+    global GlobalData;
+    sProcess = GlobalData.Processes.Current(iProcess);
+
+    % Get options
+    [OPTIONS, selected_clusters] = getOptions(sProcess);
+    
+    if ~isempty(OPTIONS.TimeWindow)
+        duration =  OPTIONS.TimeWindow(2) -  OPTIONS.TimeWindow(1);
+    else
+        duration = [];
+    end
+
+    be_cw_display(OPTIONS, sfreq, duration);
 end
 
