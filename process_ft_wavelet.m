@@ -86,14 +86,15 @@ function sProcess = GetDescription()
     sProcess.options.nb_levels.Type    = 'value';
     sProcess.options.nb_levels.Value   = {1024, '',0};
 
-    sProcess.options.label2.Comment = '<b>Display options:</b>';
-    sProcess.options.label2.Type    = 'label';
+    sProcess.options.label3.Comment = '<b>Compute the following measure:</b>';
+    sProcess.options.label3.Type    = 'label';
+    sProcess.options.label3.Group    = 'output';
 
-
-    sProcess.options.normalization.Comment = 'Apply normalization: ';
-    sProcess.options.normalization.Type    = 'checkbox';
-    sProcess.options.normalization.Value   = 1;
-
+    sProcess.options.measure.Comment  = {'None (save complex values)', 'Power', 'Instantaneous energy (Teager-Kaiser energy operator)', ''; ...
+                                      'none', 'power', 'TeagerK', ''};
+    sProcess.options.measure.Type     = 'radio_linelabel';
+    sProcess.options.measure.Value    = 'TeagerK';
+    sProcess.options.measure.Group    = 'output';
 end
 
 function s = str_pad(s, padsize)
@@ -196,13 +197,18 @@ function OutputFiles = Run(sProcess, sInputs)
             sDataOut.Time       = time;
             sDataOut.Freqs      = OPTIONS.wavelet.freqs_analyzed;
             sDataOut.Options    = OPTIONS;
+            sDataOut.Options.PowerUnits = 'physical';
             sDataOut.Comment    = sprintf('CW (%s)', matlab.lang.makeValidName(selected_clusters{iCluster}));
             sDataOut.Method     = 'morlet';
-            sDataOut.Measure    = 'power';
-            sDataOut = bst_history('add',  sDataOut, 'Compute', 'Compute CW Time-Frequency');
-            sDataOut.Options.PowerUnits = 'physical';
-            sDataOut.DisplayUnits       = 'power'; 
-    
+            sDataOut = bst_history('add',  sDataOut, 'Compute', 'Compute CW Time-Frequency (Morse wavelet)');
+            if  strcmpi(OPTIONS.wavelet.measure, 'none')
+                sDataOut.DisplayUnits = ''; 
+                sDataOut.Measure      = 'none';
+            else
+                sDataOut.DisplayUnits = 'power'; 
+                sDataOut.Measure      = 'power';
+            end
+
             % Generate a new file name in the same folder
             sStudy      = bst_get('Study', sInputs(iFile).iStudy);
             OutputFile  = bst_process('GetNewFilename', bst_fileparts(sStudy.FileName), 'timefreq_wavelet');
@@ -239,19 +245,14 @@ function [OPTIONS, selected_clusters, TimeWindow] = getOptions(sProcess)
     OPTIONS.wavelet.vanish_moments      = sProcess.options.vanish_moments.Value{1} ;    % vanish moments
     OPTIONS.wavelet.order               = sProcess.options.order.Value{1} ;             % spectral decay
     OPTIONS.wavelet.nb_levels           = sProcess.options.nb_levels.Value{1};          % number of voices
-    OPTIONS.wavelet.verbose             = 0;   
-    OPTIONS.wavelet.display.fontscale   = 16;
+    OPTIONS.wavelet.verbose             = 0; 
+    OPTIONS.wavelet.measure             = sProcess.options.measure.Value;
+
     if isfield(sProcess.options, 'sensortypes')
         OPTIONS.channelTypes                = sProcess.options.sensortypes.Value;
     end
+
     OPTIONS.TimeWindow                  = TimeWindow;
-
-
-    if sProcess.options.normalization.Value
-        OPTIONS.wavelet.display.TaegerK = 'yes';
-    else
-        OPTIONS.wavelet.display.TaegerK = 'no';
-    end
 end
 
 function sClusters = getClusters(ChannelFile, selected_clusters)
