@@ -123,21 +123,25 @@ function OutputFiles = Run(sProcess, sInputs)
             [time, data, iOrigTime]     = getData(sInputs(iFile), OPTIONS, sClusters(iCluster));
             OPTIONS.mandatory.DataTime  = time; 
             
-            sizePerSample    = prod([size(data, 2), 1+OPTIONS.wavelet.nb_levels]);
+            sizePerSample = prod([size(data, 2), 1+OPTIONS.wavelet.nb_levels]);
             nSamples = size(data, 1);
             
             blockSize   = min(max(floor(MaxSizeDouble / sizePerSample), 1), nSamples);
             nBlocks     = ceil(nSamples / blockSize);
-            
-            meanvar_estimator  = be_WelfordVariance( size(data, 1),  [1+OPTIONS.wavelet.nb_levels, sum(iOrigTime)]);
-            fprintf('Tf-nirs > Analyzing %d blokcs of %d signals... \n', nBlocks,  blockSize)
 
+            % Initialize mean estimator
+            meanvar_estimator  = be_WelfordVariance( size(data, 1),  [1+OPTIONS.wavelet.nb_levels, sum(iOrigTime)]);
+
+            % Initialize wavelet transform
+            [Psi, OPTIONS] = be_cw_init(size(data, 2), OPTIONS);
+
+            fprintf('Tf-nirs > Analyzing %d blokcs of %d signals... \n', nBlocks,  blockSize)
             for iBlock = 1 : nBlocks
                 iChannel = [((iBlock-1) * blockSize + 1) : min(iBlock * blockSize, nSamples)];
 
                 % Step 1 - compute time-frequency representation
                 fprintf('Tf-nirs [%d/%d] > Computing the CW decomposition ... ', iBlock, nBlocks)
-                [power, OPTIONS] = be_cw_transform(data(iChannel, :), OPTIONS);
+                power = be_cw_transform(data(iChannel, :), Psi);
                 power = permute(power(:, iOrigTime, :), [1, 3, 2]); % N_channel x Nfreq x Ntime
                 fprintf(' Done. \n')
         
@@ -147,7 +151,6 @@ function OutputFiles = Run(sProcess, sInputs)
                 OPTIONS.title_tf =  title_tf ;
                 fprintf(' Done. \n')
             
-        
                 % Step 3- Normalize the TF maps ( standardize power)
                 fprintf('Tf-nirs [%d/%d]> Normalizing the power of each vertex... ', iBlock, nBlocks)
                 [power, ref(iChannel)] = be_scale_TF(power, ref(iChannel));
@@ -184,7 +187,7 @@ function OutputFiles = Run(sProcess, sInputs)
             sDataOut.Measure    = 'power';
             sDataOut = bst_history('add',  sDataOut, 'Compute', 'Compute CW Time-Frequency');
             sDataOut.Options.PowerUnits = 'physical';
-            sDataOut.DisplayUnits       = '\mumol.l-1'; 
+            sDataOut.DisplayUnits       = 'power'; 
     
             % Generate a new file name in the same folder
             sStudy      = bst_get('Study', sInputs(iFile).iStudy);
