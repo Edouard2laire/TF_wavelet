@@ -130,10 +130,15 @@ function OutputFiles = Run(sProcess, sInputs)
             nBlocks     = ceil(nSamples / blockSize);
 
             bst_progress('start', 'Running Time-Frequency Analysis', 'Running Time-Frequency Analysis', 0, nBlocks);
-
-            [~, iOrigTime, ~]  = getData(sData , OPTIONS, vertex(1));
+            
+            % Initialize mean estimator
+            [data_cortex, iOrigTime, OPTIONS]  = getData(sData , OPTIONS, vertex(1));
             meanvar_estimator  = be_WelfordVariance(nSamples,  [1+OPTIONS.wavelet.nb_levels, sum(iOrigTime)]);
-    
+
+            % Initialize wavelet transform
+            [Psi, OPTIONS] = be_cw_init(size(data_cortex, 2), OPTIONS);
+
+            fprintf('Tf-nirs > Analyzing %d blokcs of %d signals... \n', nBlocks,  blockSize)
             for iBlock = 1 : nBlocks
 
                 idx = [((iBlock-1) * blockSize + 1) : min(iBlock * blockSize, nSamples)];
@@ -141,7 +146,7 @@ function OutputFiles = Run(sProcess, sInputs)
     
                 % Step 1 - compute time-frequency representation
                 fprintf('Tf-nirs [%d/%d] > Computing the CW decomposition ... ', iBlock, nBlocks)
-                [power, OPTIONS] = be_cw_transform(data_cortex, OPTIONS);
+                power = be_cw_transform(data_cortex, Psi);
                 power = permute(power(:, iOrigTime, :), [1, 3, 2]); % nVertex x Nfreq x Ntime
                 fprintf(' Done. \n')
     
@@ -154,6 +159,7 @@ function OutputFiles = Run(sProcess, sInputs)
                 meanvar_estimator.update(power);
                 bst_progress('inc', 1);
             end
+
             wData = reshape(meanvar_estimator.Mean, [1, 1+OPTIONS.wavelet.nb_levels, sum(iOrigTime)]);
             OPTIONS.title_tf =  title_tf ;
 
@@ -186,7 +192,7 @@ function OutputFiles = Run(sProcess, sInputs)
             sDataOut.Method     = 'morlet';
             sDataOut.Measure    = 'power';
             sDataOut.Options.PowerUnits = 'physical';
-            sDataOut.DisplayUnits       =' \mumol.l-1'; 
+            sDataOut.DisplayUnits       ='power'; 
     
             % Generate a new file name in the same folder
             sStudy = bst_get('Study', sInputs(iFile).iStudy);
